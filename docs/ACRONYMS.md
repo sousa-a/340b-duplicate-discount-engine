@@ -100,7 +100,7 @@ Every acronym used in the code, the documents and the published material. When a
 | UC | Unity Catalog (Databricks data catalog) |
 | DAB | Databricks Asset Bundle (deployment definition, databricks.yml) |
 | RDD | Resilient Distributed Dataset (old Spark API, not available on serverless) |
-| CSV | Comma-separated values (this project uses ';' as separator) |
+| CSV | Comma-separated values
 
 ## Project terms
 
