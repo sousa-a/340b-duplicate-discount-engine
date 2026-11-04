@@ -55,3 +55,28 @@ def test_nothing_internal_is_published():
 def test_private_folder_is_git_ignored():
     lines = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "private/" in lines
+
+
+# The generator lives in the same folder as the engine but must never be committed to the engine repo.
+GENERATOR_PATHS = ["config/", "src/common/", "src/generator/", "private/",
+                   "dbt/seeds/build_seed_fictional_ndc_packages.py", "dbt/seeds/seed_fictional_ndc_packages.csv"]
+
+
+def test_generator_paths_are_git_ignored():
+    lines = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    missing = [p for p in GENERATOR_PATHS if p not in lines]
+    assert not missing, f".gitignore does not list: {missing}"
+
+
+def test_no_ignored_file_is_tracked():
+    """A file listed in .gitignore but already committed stays in the repo; .gitignore only stops new additions.
+    This lists tracked files that match .gitignore (git ls-files --cached --ignored --exclude-standard)."""
+    import shutil
+    import subprocess
+    import pytest
+    if shutil.which("git") is None or not (REPO / ".git").exists():
+        pytest.skip("not a git checkout")
+    out = subprocess.run(["git", "ls-files", "--cached", "--ignored", "--exclude-standard"], cwd=REPO,
+                         capture_output=True, text=True, check=True).stdout.split()
+    print(f"[publication] tracked files that .gitignore excludes: {len(out)}")
+    assert not out, f"committed files that should be ignored (remove with git rm --cached): {out[:20]}"
