@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 .pytest_cache/
 
+# config
+config/
+
 # dbt
 dbt/target/
 dbt/dbt_packages/
@@ -13,9 +16,12 @@ dbt/profiles.yml
 # Databricks bundle state
 .databricks/
 
-# Generated data and downloaded reference files (regenerated or downloaded by scripts)
+# Generated data and downloaded reference files
 data/
 reference_data/
+
+# Private working docs
+private/
 
 # Credentials
 .env
