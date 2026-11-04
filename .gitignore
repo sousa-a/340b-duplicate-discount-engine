@@ -4,9 +4,6 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# config
-config/
-
 # dbt
 dbt/target/
 dbt/dbt_packages/
@@ -19,6 +16,25 @@ dbt/profiles.yml
 # Generated data and downloaded reference files
 data/
 reference_data/
+
+# Synthetic data generator: separate private repo
+config/
+src/common/
+src/generator/
+dbt/seeds/build_seed_fictional_ndc_packages.py
+dbt/seeds/seed_fictional_ndc_packages.csv
+tests/test_entities.py
+tests/test_prices.py
+tests/test_ndc.py
+tests/test_dispensing.py
+tests/test_conversion.py
+tests/test_wholesale.py
+tests/test_x12.py
+tests/test_npi.py
+tests/test_extract_nppes_npis.py
+tests/test_identifier_audit.py
+tests/test_parameters_register.py
+tests/test_pilot_submissions.py
 
 # Private working docs
 private/
