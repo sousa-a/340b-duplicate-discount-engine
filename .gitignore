@@ -21,7 +21,6 @@ reference_data/
 config/
 src/common/
 src/generator/
-dbt/seeds/
 dbt/seeds/build_seed_fictional_ndc_packages.py
 dbt/seeds/seed_fictional_ndc_packages.csv
 tests/test_entities.py
@@ -36,6 +35,7 @@ tests/test_extract_nppes_npis.py
 tests/test_identifier_audit.py
 tests/test_parameters_register.py
 tests/test_pilot_submissions.py
+tests/test_mtf.py
 
 # Private working docs
 private/
