@@ -21,6 +21,7 @@ reference_data/
 config/
 src/common/
 src/generator/
+dbt/seeds/
 dbt/seeds/build_seed_fictional_ndc_packages.py
 dbt/seeds/seed_fictional_ndc_packages.csv
 tests/test_entities.py

@@ -28,10 +28,8 @@ The `src/generator/` simulates the whole market and knows everything, including 
 
 ## Documentation
 
-- [Synthetic data design](docs/SYNTHETIC_DATA_DESIGN.md)
 - [References](docs/REFERENCES.md)
 - [Acronyms and terms](docs/ACRONYMS.md)
-- [Data sources and downloads](docs/DATA_SOURCES.md)
 
 ## How this was built
 
