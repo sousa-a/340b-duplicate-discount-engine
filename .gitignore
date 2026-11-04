@@ -36,9 +36,15 @@ tests/test_identifier_audit.py
 tests/test_parameters_register.py
 tests/test_pilot_submissions.py
 tests/test_mtf.py
+tests/test_state_invoices.py
 
 # Private working docs
 private/
+
+# Generated data and downloaded reference files
+data/
+reference_data/
+bundle/
 
 # Credentials
 .env
