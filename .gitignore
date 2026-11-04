@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/profiles.yml
+
+# Databricks bundle state
+.databricks/
+
+# Generated data and downloaded reference files (regenerated or downloaded by scripts)
+data/
+reference_data/
+
+# Credentials
+.env
+*.pem
