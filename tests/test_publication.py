@@ -57,9 +57,9 @@ def test_private_folder_is_git_ignored():
     assert "private/" in lines
 
 
-# The generator lives in the same folder as the engine but must never be committed to the engine repo.
-GENERATOR_PATHS = ["config/", "src/common/", "src/generator/", "private/",
-                   "dbt/seeds/build_seed_fictional_ndc_packages.py", "dbt/seeds/seed_fictional_ndc_packages.csv"]
+# The generator, its parameters and the seeds with their builders live in the same folder as the engine but must
+# never be committed to the engine repo.
+GENERATOR_PATHS = ["config/", "src/common/", "src/generator/", "private/", "dbt/seeds/"]
 
 
 def test_generator_paths_are_git_ignored():

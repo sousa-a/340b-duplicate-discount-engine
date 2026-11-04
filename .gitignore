@@ -16,13 +16,13 @@ dbt/profiles.yml
 # Generated data and downloaded reference files
 data/
 reference_data/
+bundle/
 
-# Synthetic data generator: separate private repo
+# Synthetic data generator, its parameters and the seeds with their builders: kept private
 config/
 src/common/
 src/generator/
-dbt/seeds/build_seed_fictional_ndc_packages.py
-dbt/seeds/seed_fictional_ndc_packages.csv
+dbt/seeds/
 tests/test_entities.py
 tests/test_prices.py
 tests/test_ndc.py
@@ -37,14 +37,10 @@ tests/test_parameters_register.py
 tests/test_pilot_submissions.py
 tests/test_mtf.py
 tests/test_state_invoices.py
+tests/test_noise.py
 
 # Private working docs
 private/
-
-# Generated data and downloaded reference files
-data/
-reference_data/
-bundle/
 
 # Credentials
 .env
