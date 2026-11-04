@@ -1,0 +1,13 @@
+# Copy to dbt/profiles.yml (git-ignored) or to ~/.dbt/profiles.yml.
+# Credentials come from environment variables, never from this file.
+duplicate_discount_340b:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      catalog: "{{ env_var('DBX_CATALOG', 'main') }}"
+      schema: default
+      host: "{{ env_var('DBX_HOST') }}"
+      http_path: "{{ env_var('DBX_HTTP_PATH') }}"
+      token: "{{ env_var('DBX_TOKEN') }}"
+      threads: 4

@@ -1,0 +1,37 @@
+# dbt project for the 340B duplicate discount engine.
+# Layer-to-schema mapping (Unity Catalog), see README "How it is organized":
+#   staging and intermediate -> silver
+#   marts                    -> gold
+#   seeds                    -> silver
+# The truth schema is never referenced here (guarded by tests/test_engine_isolation.py).
+
+name: duplicate_discount_340b
+version: "0.1.0"
+config-version: 2
+profile: duplicate_discount_340b
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  duplicate_discount_340b:
+    staging:
+      +materialized: view
+      +schema: silver
+    intermediate:
+      +materialized: table
+      +schema: silver
+    marts:
+      +materialized: table
+      +schema: gold
+
+seeds:
+  duplicate_discount_340b:
+    # Project CSV rule: comma separator and encoding='utf-8-sig'.
+    # Check on the first `dbt seed` run that the BOM does not leak into the first column name.
+    +delimiter: ","
+    +schema: silver
