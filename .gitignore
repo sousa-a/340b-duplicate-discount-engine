@@ -38,6 +38,7 @@ tests/test_pilot_submissions.py
 tests/test_mtf.py
 tests/test_state_invoices.py
 tests/test_noise.py
+tests/test_truth.py
 
 # Private working docs
 private/
