@@ -1,0 +1,224 @@
+# Staging models rebuilt from the X12 EDI files (844 chargebacks, 849 responses, 867 sales reports).
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Severity rule of the project: errors only for primary keys, warnings for everything else.
+# Reconciliation tests (lines against the control totals each file declares) are in tests/edi/.
+
+version: 2
+
+models:
+  - name: stg_edi_844_chargeback_lines
+    description: >
+      Chargeback lines from the EDI 844 files, one row per line, rebuilt from the X12 segments. Each line is a sale
+      at the 340B contract price for which the wholesaler claims the WAC difference from the manufacturer.
+      Synthetic data.
+    columns:
+      - name: debit_memo_number
+        description: Wholesaler debit memo the line belongs to (BAA05). Part of the key with line_number.
+        data_tests: [not_null]
+      - name: line_number
+        description: Position of the line within its debit memo, from 1.
+      - name: sale_line_id
+        description: Wholesaler's identifier of the sale line, from the composite N9 element 07 (L1>id).
+        data_tests:
+          - not_null: {config: {severity: warn}}
+          - unique: {config: {severity: warn}}
+      - name: debit_memo_date
+        description: Date of the debit memo (BAA03).
+      - name: wholesaler_id
+        description: Sender of the file (GS02), the wholesaler (synthetic).
+      - name: manufacturer_code
+        description: Receiver of the file (GS03), the manufacturer.
+      - name: contract_number
+        description: Contract the sale was made under (CON02), the 340B contract.
+      - name: ship_to_name
+        description: Pharmacy the drug was shipped to (N1*ST 02, synthetic).
+      - name: ship_to_dea
+        description: DEA number of the ship-to pharmacy (N1*ST 04, synthetic).
+      - name: customer_340b_id
+        description: >
+          340B ID of the covered entity whose account bought the drug (REF*2U 02). NULL when the segment came with
+          a blank ID; the manufacturer disputes such lines.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: ref_2u_segments
+        description: Number of REF*2U segments on the line. 1 is expected; 0 means the segment is missing altogether.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: [1]
+                quote: false
+      - name: invoice_number
+        description: Wholesaler invoice of the sale (N9*DI 02).
+      - name: invoice_date
+        description: Date of that invoice (N9*DI 04).
+      - name: product_id_qualifier
+        description: Type of product ID in SII02. ND means NDC.
+      - name: ndc11
+        description: NDC, 11 digits (SII02).
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+      - name: unit_of_measure
+        description: Unit of the quantity (SII04). EA, each package.
+      - name: quantity_packages
+        description: Number of packages sold (SII03).
+      - name: wac_per_package
+        description: Wholesale Acquisition Cost of one package (SII05, synthetic).
+      - name: contract_price_per_package
+        description: 340B contract price of one package (SII06, synthetic).
+      - name: chargeback_amount
+        description: Amount claimed, (WAC - contract price) x quantity (SII07).
+      - name: _source_file
+        description: Inbox file the line came from.
+      - name: st_control_number
+        description: Control number of the X12 transaction set (ST02) within the file.
+      - name: first_segment_position
+        description: Position in the file of the line's first segment (CON), to find the line in the original file.
+
+  - name: stg_edi_844_debit_memos
+    description: >
+      EDI 844 debit memos, one row per transaction set, with the control totals the wholesaler declared (CTT, AMT*CC)
+      and the number of lines actually found. Synthetic data.
+    columns:
+      - name: debit_memo_number
+        description: Wholesaler debit memo number (BAA05). Primary key.
+        data_tests: [unique, not_null]
+      - name: debit_memo_date
+        description: Date of the debit memo (BAA03).
+      - name: purpose_code
+        description: Transaction set purpose (BAA01). 00 means original.
+      - name: wholesaler_id
+        description: Sender of the file (GS02).
+      - name: manufacturer_code
+        description: Receiver of the file (GS03).
+      - name: wholesaler_branch_dea
+        description: DEA number of the wholesaler branch (N1*DB 04, synthetic).
+      - name: supplier_dea
+        description: DEA number of the manufacturer as supplier (N1*SU 04, synthetic).
+      - name: lines_found
+        description: Number of lines (CON loops) in the transaction set.
+      - name: lines_declared
+        description: Number of lines the wholesaler declared (CTT01).
+      - name: total_amount_declared
+        description: Total chargeback amount the wholesaler declared (AMT*CC 02).
+      - name: _source_file
+        description: Inbox file the debit memo came from.
+      - name: st_control_number
+        description: Control number of the X12 transaction set (ST02).
+
+  - name: stg_edi_849_responses
+    description: >
+      EDI 849 responses, one row per debit memo answered: amounts submitted, disputed and accepted. Synthetic data.
+    columns:
+      - name: debit_memo_number
+        description: Debit memo being answered (REF*AM 02). Primary key.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_edi_844_debit_memos')
+                field: debit_memo_number
+      - name: credit_memo_number
+        description: Credit memo the manufacturer issued (BRC04).
+      - name: response_date
+        description: Date of the response (BRC02).
+      - name: manufacturer_code
+        description: Sender of the file (GS02), the manufacturer.
+      - name: wholesaler_id
+        description: Receiver of the file (GS03), the wholesaler.
+      - name: lines_submitted
+        description: Number of lines the wholesaler submitted on the debit memo (REF*ZZ 02).
+      - name: lines_in_error
+        description: Number of lines the manufacturer disputed (CTT01).
+      - name: submitted_amount
+        description: Amount the wholesaler claimed (AMT*S).
+      - name: net_adjustment_amount
+        description: Amount disputed and not paid (AMT*NA).
+      - name: accepted_amount
+        description: Amount accepted and paid (AMT*A).
+      - name: _source_file
+        description: Inbox file the response came from.
+      - name: st_control_number
+        description: Control number of the X12 transaction set (ST02).
+
+  - name: stg_edi_867_sales_lines
+    description: >
+      Sales lines from the EDI 867 Product Transfer and Resale Reports: what each wholesaler sold, to which pharmacy,
+      in which week, and whether the sale went to a 340B contract account. Synthetic data.
+    columns:
+      - name: invoice_number
+        description: Wholesaler invoice of the sale (N9*DI 02).
+      - name: invoice_date
+        description: Date of that invoice (N9*DI 04).
+      - name: wholesaler_id
+        description: Sender of the file (GS02).
+      - name: manufacturer_code
+        description: Receiver of the file (GS03).
+      - name: report_date
+        description: Date of the report (BPT03).
+      - name: period_start_date
+        description: First day of the reporting period (DTM*090).
+      - name: period_end_date
+        description: Last day of the reporting period (DTM*091).
+      - name: ship_to_name
+        description: Pharmacy the drug was shipped to (N1*ST 02, synthetic).
+      - name: ship_to_dea
+        description: DEA number of the ship-to pharmacy (N1*ST 04, synthetic).
+      - name: contract_number
+        description: 340B contract of the account (REF*CT 02). NULL for a sale at WAC.
+      - name: is_340b_account
+        description: True when the ship-to group carries a REF*CT, a sale to a 340B contract account.
+      - name: product_id_qualifier
+        description: Type of product ID in SII02. N4 means NDC in 5-4-2 form.
+      - name: ndc11
+        description: NDC, 11 digits (SII02).
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+      - name: unit_of_measure
+        description: Unit of the quantity (SII04). EA, each package.
+      - name: quantity_packages
+        description: Number of packages sold (SII03).
+      - name: wac_per_package
+        description: WAC of one package (SII06, synthetic).
+      - name: extended_amount
+        description: Quantity x WAC (SII07).
+      - name: _source_file
+        description: Inbox file the line came from. Part of the key with st_control_number and line_number.
+      - name: st_control_number
+        description: Control number of the X12 transaction set (ST02). Part of the key.
+      - name: ship_to_group
+        description: Position of the ship-to group (PTD loop) within the transaction set.
+      - name: line_number
+        description: Position of the line (SII loop) within the transaction set. Part of the key.
+      - name: first_segment_position
+        description: Position in the file of the line's SII segment.
+
+  - name: stg_edi_867_reports
+    description: >
+      EDI 867 reports, one row per transaction set (wholesaler, manufacturer, week), with the declared total
+      (AMT*TT) and the number of lines found. Synthetic data.
+    columns:
+      - name: _source_file
+        description: Inbox file the report came from. Part of the key with st_control_number.
+      - name: st_control_number
+        description: Control number of the X12 transaction set (ST02). Part of the key.
+      - name: wholesaler_id
+        description: Sender of the file (GS02).
+      - name: manufacturer_code
+        description: Receiver of the file (GS03).
+      - name: report_reference
+        description: Report reference the wholesaler assigned (BPT02).
+      - name: report_date
+        description: Date of the report (BPT03).
+      - name: period_start_date
+        description: First day of the reporting period (DTM*090).
+      - name: period_end_date
+        description: Last day of the reporting period (DTM*091).
+      - name: ship_to_groups
+        description: Number of ship-to groups (PTD loops).
+      - name: lines_found
+        description: Number of product lines (SII) found.
+      - name: total_amount_declared
+        description: Total of the extended amounts the wholesaler declared (AMT*TT 02).
