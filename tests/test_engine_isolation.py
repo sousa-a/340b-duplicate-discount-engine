@@ -3,7 +3,8 @@
 # Enforces the "two worlds" rule:
 # the detection engine must never read ground truth or generator-only data.
 #
-# Checked locations: every SQL file under dbt/ and every Python file under src/ingestion/.
+# Checked locations: every SQL and YAML file under dbt/, every Python file under src/ingestion/ and the Databricks
+# notebooks under notebooks/ (the raw parser is engine code too).
 # Forbidden: any reference to the truth schema, and any reference to generator-only tables
 # (TPA accumulation records), which a manufacturer would never receive.
 
@@ -16,6 +17,7 @@ ENGINE_PATHS = [
     (REPO_ROOT / "dbt", "*.sql"),
     (REPO_ROOT / "dbt", "*.yml"),
     (REPO_ROOT / "src" / "ingestion", "*.py"),
+    (REPO_ROOT / "notebooks", "*.py"),
 ]
 
 # Patterns that would mean the engine is looking at the answer key or at hidden generator data.
@@ -36,7 +38,7 @@ def _engine_files():
     for base, pattern in ENGINE_PATHS:
         if base.exists():
             for path in sorted(base.rglob(pattern)):
-                if path in ALLOWED_FILES or "target" in path.parts or "dbt_packages" in path.parts:
+                if path in ALLOWED_FILES or "target" in path.parts or "dbt_packages" in path.parts or "seeds" in path.parts:
                     continue
                 yield path
 

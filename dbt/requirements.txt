@@ -1,0 +1,4 @@
+# Python package for the dbt task of the Databricks job (serverless environment, "Environment and Libraries").
+# Pinned to one exact version so every run uses the same dbt; Databricks recommends dbt-databricks 1.6.0 or later.
+# 1.10.19 is the version the project was parsed and tested with (dbt-core 1.10.19).
+dbt-databricks==1.10.19

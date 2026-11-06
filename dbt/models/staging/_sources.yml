@@ -1,0 +1,126 @@
+# Sources: the raw tables written by notebooks/parse_inbox.py. dbt does not build them, it only reads them.
+# Declaring them here lets models say {{ source('raw', 'mtf_claims') }} instead of a hard-coded table name, puts them
+# at the start of the lineage graph, and lets tests run on them before any model is built.
+#
+# Every raw column is text exactly as received. The tests on source columns check validity (does the text convert
+# to the type staging will give it, does it have the expected format). Tests on what the values mean belong to the
+# staging models.
+#
+# Severity rule: only the record key (unique, not_null) is an error, because a duplicate or missing key breaks every
+# join after it. Every other finding (an empty field, a value that does not convert, a wrong format) is a warning:
+# it is stored in the data_quality schema and reported, but the build goes on, since dbt would otherwise skip every
+# model downstream of the failing test.
+#
+# All data in these tables is synthetic (SYNTHETIC_DATA_NOTICE.md).
+
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >
+      The manufacturer inbox as received, one table per file type, loaded by notebooks/parse_inbox.py.
+      Every value is text; every row carries _source_file (the file it came from) and _ingested_at (load time).
+    tables:
+      - name: manufacturer_codes
+        description: Code used in file names and EDI headers for each manufacturer (MFR001...), with its name.
+      - name: hrsa_opais_covered_entities
+        description: Covered entities as HRSA publishes them in OPAIS (Office of Pharmacy Affairs Information System).
+      - name: hrsa_opais_contract_pharmacies
+        description: Contract pharmacy arrangements registered in OPAIS, one row per entity and pharmacy.
+      - name: hrsa_medicaid_exclusion_file
+        description: >
+          Medicaid Exclusion File (MEF): entities and billing NPIs that carve 340B drugs in for Medicaid fee for
+          service, so their Medicaid claims must be left out of state rebate invoices.
+      - name: chargeback_disputes
+        description: Chargeback lines the manufacturer disputed, with the validation reason.
+      - name: mtf_claims
+        description: >
+          Part D claims of drugs under a Maximum Fair Price (MFP), as the Medicare Transaction Facilitator (MTF)
+          sends them to the manufacturer. One row per claim record; reversals point to the original through
+          mtf_xref_icn.
+        columns:
+          - name: mtf_icn
+            description: Internal control number of the MTF record. Unique per record.
+            data_tests:
+              - not_null
+              - unique
+          - name: mtf_xref_icn
+            description: For a reversal, the control number of the original record it cancels. Empty otherwise.
+          - name: process_date
+            description: Date the MTF processed the record (yyyy-MM-dd).
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: date}}
+          - name: transaction_code
+            description: ORIGINAL or REVERSAL.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+          - name: date_of_service
+            description: Date the prescription was filled (yyyy-MM-dd).
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: date}}
+          - name: service_provider_id
+            description: Dispensing pharmacy identifier (NPI when the qualifier is 01).
+            data_tests:
+              - not_null: {config: {severity: warn}}
+          - name: rx_number
+            description: Prescription number assigned by the pharmacy.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+          - name: fill_number
+            description: 0 for the first fill, then 1, 2... for refills.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: int}}
+          - name: ndc11
+            description: National Drug Code, 11 digits without hyphens.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+          - name: quantity_dispensed
+            description: Units dispensed.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: "decimal(14,3)"}}
+          - name: days_supply
+            data_tests:
+              - castable_to: {arguments: {data_type: int}}
+          - name: indicator_340b
+            description: Y when the pharmacy flagged the claim as 340B. Empty when not flagged.
+          - name: wac_per_unit
+            description: Wholesale Acquisition Cost per unit on the date of service.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: "decimal(18,6)"}}
+          - name: mfp_per_unit
+            description: Maximum Fair Price per unit.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: "decimal(18,6)"}}
+          - name: sdra
+            description: Standard Default Refund Amount, (WAC - MFP) x quantity, what the manufacturer owes the pharmacy.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: "decimal(18,2)"}}
+      - name: mtf_payments
+        description: The manufacturer's refund decision and payment for each MTF record (refund code 1, 4 or 8).
+      - name: pilot_submissions
+        description: Claims covered entities submitted through the 340B rebate Pilot platform.
+      - name: pilot_rebate_status
+        description: The manufacturer's decision on each Pilot submission (paid, denied, rejected) and payment.
+      - name: pilot_ceiling_prices
+        description: The manufacturer's quarterly WAC and 340B ceiling price per package, for Pilot drugs.
+      - name: state_invoice_manifest
+        description: One row per CMS-R-144 invoice file received, with state, quarter and number of lines.
+      - name: state_claim_level_detail
+        description: Claim detail behind invoice lines, which a state provides when a manufacturer disputes a line.
+      - name: edi_844_segments
+        description: EDI 844 chargeback files, one row per X12 segment, with its interchange, group and transaction numbers.
+      - name: edi_849_segments
+        description: EDI 849 chargeback responses, one row per X12 segment.
+      - name: edi_867_segments
+        description: EDI 867 product transfer and resale reports, one row per X12 segment.
+      - name: state_invoice_lines
+        description: CMS-R-144 state Medicaid rebate invoices, one row per line, fields cut at the published widths and kept padded.

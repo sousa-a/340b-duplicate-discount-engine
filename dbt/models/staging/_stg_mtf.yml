@@ -1,0 +1,70 @@
+# Staging models built from the MTF (Medicare Transaction Facilitator) files.
+# Column descriptions here are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Tests here check what values mean; format checks on the raw text are in _sources.yml.
+# Same severity rule as the sources: errors only for the primary key, warnings for everything else.
+
+version: 2
+
+models:
+  - name: stg_mtf_claims
+    description: >
+      MTF Part D claim records of drugs under a Maximum Fair Price, one row per record, typed. Synthetic data.
+    columns:
+      - name: mtf_icn
+        description: Internal control number of the MTF record. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: mtf_xref_icn
+        description: For a reversal, the control number of the original record it cancels.
+        data_tests:
+          - relationships:
+              config:
+                severity: warn
+              arguments:
+                to: ref('stg_mtf_claims')
+                field: mtf_icn
+      - name: transaction_code
+        description: ORIGINAL or REVERSAL.
+        data_tests:
+          - accepted_values:
+              config:
+                severity: warn
+              arguments:
+                values: ['ORIGINAL', 'REVERSAL']
+      - name: is_reversal
+        description: True when the record cancels an earlier one.
+      - name: date_of_service
+        description: Date the prescription was filled.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: ndc11
+        description: National Drug Code, 11 digits.
+      - name: quantity_dispensed
+        description: Units dispensed.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: indicator_340b
+        description: Raw 340B flag from the pharmacy, Y or empty.
+        data_tests:
+          - accepted_values:
+              config:
+                severity: warn
+              arguments:
+                values: ['Y']
+      - name: is_flagged_340b
+        description: True when the pharmacy flagged the claim as 340B.
+      - name: wac_per_unit
+        description: Wholesale Acquisition Cost per unit on the date of service, US dollars (synthetic).
+      - name: mfp_per_unit
+        description: Maximum Fair Price per unit, US dollars.
+      - name: sdra
+        description: Standard Default Refund Amount computed by the MTF, (WAC - MFP) x quantity.
+      - name: _source_file
+        description: Inbox file the record came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

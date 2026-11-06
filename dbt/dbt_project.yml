@@ -1,9 +1,16 @@
 # dbt project for the 340B duplicate discount engine.
-# Layer-to-schema mapping (Unity Catalog), see README "How it is organized":
-#   staging and intermediate -> silver
-#   marts                    -> gold
-#   seeds                    -> silver
-# The truth schema is never referenced here (guarded by tests/test_engine_isolation.py).
+#
+# Layers and Unity Catalog schemas (catalog duplicate_discount). The schema of a model is the name of its folder:
+#   raw           written by notebooks/parse_inbox.py, declared here as sources, never built by dbt
+#   staging       models/staging       one view per raw table: renamed, typed, nothing joined
+#   intermediate  models/intermediate  shared eligibility layer and matching across sources
+#   marts         models/marts         evidence tables of the three detection paths
+# The macro macros/generate_schema_name.sql makes dbt use these names as they are, without the default prefix.
+#
+# The answer key lives in a separate schema that the engine never reads (guarded by tests/test_engine_isolation.py);
+# only the evaluation step compares the engine's output with it.
+#
+# No seeds: the engine takes every price and code from the inbox files, as a manufacturer receives them.
 
 name: duplicate_discount_340b
 version: "0.1.0"
@@ -11,7 +18,9 @@ config-version: 2
 profile: duplicate_discount_340b
 
 model-paths: ["models"]
-seed-paths: ["seeds"]
+# dbt reads dbt/seeds by default. That folder holds the generator's private seeds on the author's machine (it is
+# git-ignored and absent from the repository), and the engine must never load them, so seed loading is switched off.
+seed-paths: []
 test-paths: ["tests"]
 macro-paths: ["macros"]
 target-path: "target"
@@ -20,18 +29,23 @@ clean-targets: ["target", "dbt_packages"]
 models:
   duplicate_discount_340b:
     staging:
-      +materialized: view
-      +schema: silver
+      +schema: staging
+      +materialized: view          # thin layer over raw, so a view costs nothing and is always current
     intermediate:
+      +schema: intermediate
       +materialized: table
-      +schema: silver
     marts:
+      +schema: marts
       +materialized: table
-      +schema: gold
+    # Column descriptions from the .yml files are written to Unity Catalog as comments, so the data dictionary
+    # shows up in Catalog Explorer next to the data.
+    +persist_docs:
+      relation: true
+      columns: true
 
-seeds:
+data_tests:
   duplicate_discount_340b:
-    # Project CSV rule: comma separator and encoding='utf-8-sig'.
-    # Check on the first `dbt seed` run that the BOM does not leak into the first column name.
-    +delimiter: ","
-    +schema: silver
+    # Keep the failing rows of every test in a table in the data_quality schema, so a failure can be inspected
+    # row by row instead of only counted.
+    +store_failures: true
+    +schema: data_quality

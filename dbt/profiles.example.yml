@@ -1,3 +1,5 @@
+# Only needed to run dbt from your own computer. The Databricks job's dbt task is expected to build its own
+# connection from the task settings (to be confirmed on the first job run).
 # Copy to dbt/profiles.yml (git-ignored) or to ~/.dbt/profiles.yml.
 # Credentials come from environment variables, never from this file.
 duplicate_discount_340b:
@@ -5,7 +7,7 @@ duplicate_discount_340b:
   outputs:
     dev:
       type: databricks
-      catalog: "{{ env_var('DBX_CATALOG', 'main') }}"
+      catalog: "{{ env_var('DBX_CATALOG', 'duplicate_discount') }}"
       schema: default
       host: "{{ env_var('DBX_HOST') }}"
       http_path: "{{ env_var('DBX_HTTP_PATH') }}"
