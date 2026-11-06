@@ -90,3 +90,46 @@ models:
         description: Inbox file the record came from.
       - name: _ingested_at
         description: When the raw table was loaded.
+
+  - name: stg_mtf_payments
+    description: >
+      The manufacturer's refund decision and payment for each MTF record (refund method code 1, 4 or 8), typed.
+      Synthetic data.
+    columns:
+      - name: mtf_icn
+        description: Control number of the MTF record this decision answers. Primary key.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_mtf_claims')
+                field: mtf_icn
+      - name: transaction_code
+        description: ORIGINAL or REVERSAL, as on the claim record.
+      - name: is_reversal
+        description: True when the record cancels an earlier one.
+      - name: response_date
+        description: Date the manufacturer answered.
+      - name: mtf_pm_facilitation_indicator
+        description: Y when the manufacturer uses the MTF Payment Module to pay the refund, N when it pays directly.
+      - name: refund_method_code
+        description: 1 SDRA paid, 4 no refund (ceiling below MFP, remark N907), 8 refund of ceiling minus MFP (remark N917).
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['1', '4', '8']
+      - name: refund_method
+        description: Refund method code in words.
+      - name: refund_amount
+        description: Refund the manufacturer paid or owes the pharmacy, US dollars.
+      - name: remark_code
+        description: Remittance advice remark code explaining a refund other than the SDRA (N907, N917). Empty for code 1.
+      - name: payment_date
+        description: Date the refund was paid. Empty when no refund was paid.
+      - name: _source_file
+        description: Inbox file the record came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

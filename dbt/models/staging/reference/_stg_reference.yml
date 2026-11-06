@@ -1,0 +1,18 @@
+# Staging model for the manufacturer code list.
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+
+version: 2
+
+models:
+  - name: stg_manufacturer_codes
+    description: Manufacturer codes used in file names and EDI envelopes, with the manufacturer name. Synthetic codes.
+    columns:
+      - name: manufacturer_code
+        description: Code of the manufacturer (MFR001...). Primary key.
+        data_tests: [unique, not_null]
+      - name: manufacturer_name
+        description: Name of the manufacturer.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

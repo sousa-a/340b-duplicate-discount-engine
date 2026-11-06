@@ -1,0 +1,136 @@
+# Staging models for the Medicaid files: CMS-R-144 state rebate invoices, their manifest and claim-level detail.
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Severity rule of the project: errors only for primary keys, warnings for everything else.
+
+version: 2
+
+models:
+  - name: stg_medicaid_invoice_lines
+    description: >
+      CMS-R-144 state Medicaid rebate invoice lines, one row per line, trimmed and typed, with the NDC assembled and
+      the quarter dates added. Synthetic data.
+    columns:
+      - name: _source_file
+        description: Invoice file the line came from. Part of the key with line_number.
+      - name: line_number
+        description: Line number within the file, from 1. Part of the key.
+      - name: manufacturer_code
+        description: Manufacturer invoiced, taken from the file name.
+      - name: record_id
+        description: FFSU (fee for service utilization) or MCOU (managed care utilization).
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['FFSU', 'MCOU']
+      - name: utilization_type
+        description: record_id in words.
+      - name: state_code
+        description: State Medicaid program sending the invoice.
+      - name: ndc11
+        description: NDC, 11 digits, joined from labeler code, product code and package size.
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+      - name: fda_product_name
+        description: Product name, first 10 characters as on the invoice.
+      - name: period_covered
+        description: Quarter invoiced as QYYYY, for example 12026 for the first quarter of 2026.
+      - name: quarter
+        description: Quarter number, 1 to 4.
+      - name: year
+        description: Year of the quarter.
+      - name: quarter_start_date
+        description: First day of the quarter.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: quarter_end_date
+        description: Last day of the quarter.
+      - name: ura
+        description: Unit Rebate Amount, US dollars per unit (synthetic).
+      - name: units_reimbursed
+        description: Units the state paid for (FFS) or that were dispensed (MCO) in the quarter.
+      - name: rebate_amount_claimed
+        description: Rebate the state claims, URA x units reimbursed.
+      - name: number_of_prescriptions
+        description: Number of prescriptions behind the line.
+      - name: medicaid_amount_reimbursed
+        description: Amount Medicaid paid for those prescriptions.
+      - name: non_medicaid_amount_reimbursed
+        description: Amount paid by other payers.
+      - name: total_amount_reimbursed
+        description: Medicaid plus non-Medicaid amount.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_medicaid_invoice_manifest
+    description: One row per CMS-R-144 invoice file received. Synthetic data.
+    columns:
+      - name: invoice_file
+        description: Name of the invoice file. Primary key.
+        data_tests: [unique, not_null]
+      - name: state_code
+        description: State sending the invoice.
+      - name: manufacturer_code
+        description: Manufacturer invoiced.
+      - name: period_covered
+        description: Quarter invoiced (QYYYY).
+      - name: invoice_date
+        description: Date of the invoice.
+      - name: lines_declared
+        description: Number of lines the file holds, as the manifest states it.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_medicaid_claim_level_detail
+    description: >
+      Medicaid claims behind CMS-R-144 invoice lines, one row per claim, typed, with the Rx number standardized next
+      to the value as received. Synthetic data.
+    columns:
+      - name: state_code
+        description: State Medicaid program.
+      - name: manufacturer_code
+        description: Manufacturer invoiced, taken from the file name.
+      - name: invoice_file
+        description: Invoice file this detail supports, derived from the detail file name.
+        data_tests:
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_medicaid_invoice_manifest')
+                field: invoice_file
+      - name: record_id
+        description: FFSU or MCOU, the invoice line type the claim counts in.
+      - name: utilization_type
+        description: record_id in words.
+      - name: period_covered
+        description: Quarter of the invoice (QYYYY).
+      - name: ndc11
+        description: NDC, 11 digits.
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+      - name: rx_number
+        description: Prescription number as received, leading zeros included.
+      - name: rx_number_normalized
+        description: Prescription number without leading zeros, for matching.
+      - name: fill_number
+        description: 0 for the first fill, then 1, 2... for refills.
+      - name: date_of_service
+        description: Date the prescription was filled, as the state reported it.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: date_paid
+        description: Date the state paid the claim. Present for fee for service claims.
+      - name: service_provider_npi
+        description: NPI of the dispensing pharmacy (synthetic).
+      - name: prescriber_npi
+        description: NPI of the prescriber (synthetic).
+      - name: units
+        description: Units dispensed.
+      - name: medicaid_amount_reimbursed
+        description: Amount Medicaid paid for the claim.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

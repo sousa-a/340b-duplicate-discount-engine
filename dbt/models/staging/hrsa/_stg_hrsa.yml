@@ -1,0 +1,95 @@
+# Staging models for the HRSA public files: OPAIS covered entities and contract pharmacies, Medicaid Exclusion File.
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Severity rule of the project: errors only for primary keys, warnings for everything else.
+
+version: 2
+
+models:
+  - name: stg_hrsa_covered_entities
+    description: Covered entities registered in OPAIS, one row per 340B ID. Synthetic entities.
+    columns:
+      - name: ce_340b_id
+        description: 340B ID of the covered entity. Primary key.
+        data_tests: [unique, not_null]
+      - name: ce_name
+        description: Name of the covered entity (synthetic).
+      - name: opais_entity_type
+        description: >
+          Entity type: DSH (disproportionate share hospital), CAH (critical access hospital), RRC (rural referral
+          center), FQHC (federally qualified health center), RW (Ryan White grantee), OTHER_GRANTEE.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['DSH', 'CAH', 'RRC', 'FQHC', 'RW', 'OTHER_GRANTEE']
+      - name: state_code
+        description: State of the entity.
+      - name: participation_start_date
+        description: Date the entity started participating in 340B.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: termination_date
+        description: Date the entity stopped participating. NULL while it still participates.
+      - name: has_no_termination_date
+        description: True when the entity has no termination date.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_hrsa_contract_pharmacies
+    description: >
+      Contract pharmacy arrangements registered in OPAIS, one row per entity, pharmacy and start date. Synthetic.
+    columns:
+      - name: ce_340b_id
+        description: 340B ID of the covered entity. Part of the key with pharmacy_npi and contract_start_date.
+        data_tests:
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_hrsa_covered_entities')
+                field: ce_340b_id
+      - name: pharmacy_npi
+        description: NPI of the contract pharmacy (synthetic). Part of the key.
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{10}$"}}
+      - name: pharmacy_name
+        description: Name of the pharmacy (synthetic).
+      - name: pharmacy_state
+        description: State of the pharmacy.
+      - name: contract_start_date
+        description: First day the arrangement is in force. Part of the key.
+      - name: contract_end_date
+        description: Last day the arrangement is in force. NULL while open.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_hrsa_medicaid_exclusion_file
+    description: >
+      Medicaid Exclusion File: billing NPIs through which covered entities bill Medicaid fee for service with 340B
+      drugs. One row per entity, state, billing NPI and start date. Synthetic.
+    columns:
+      - name: ce_340b_id
+        description: 340B ID of the covered entity. Part of the key with state_code, billing_npi and effective_from.
+        data_tests:
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_hrsa_covered_entities')
+                field: ce_340b_id
+      - name: state_code
+        description: State Medicaid program the exclusion applies to. Part of the key.
+      - name: billing_npi
+        description: NPI the entity bills Medicaid with (synthetic). Part of the key.
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{10}$"}}
+      - name: effective_from
+        description: First day the exclusion applies. Part of the key.
+      - name: effective_to
+        description: Last day the exclusion applies. NULL while open.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

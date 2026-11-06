@@ -222,3 +222,40 @@ models:
         description: Number of product lines (SII) found.
       - name: total_amount_declared
         description: Total of the extended amounts the wholesaler declared (AMT*TT 02).
+
+  - name: stg_chargeback_disputes
+    description: Chargeback lines the manufacturer disputed, one row per line, with the reason. Synthetic data.
+    columns:
+      - name: sale_line_id
+        description: Wholesaler's sale line identifier, as on the 844 line. Primary key.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_edi_844_chargeback_lines')
+                field: sale_line_id
+      - name: debit_memo_number
+        description: Debit memo the disputed line belongs to.
+      - name: invoice_number
+        description: Wholesaler invoice of the sale.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: customer_340b_id
+        description: 340B ID on the line as sent. NULL when it was blank.
+      - name: chargeback_amount
+        description: Amount claimed on the line, US dollars.
+      - name: dispute_reason
+        description: >
+          Validation that failed: MISSING_340B_ID, UNKNOWN_340B_ID (not a covered entity in OPAIS) or
+          ENTITY_NOT_ACTIVE_ON_INVOICE_DATE.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['MISSING_340B_ID', 'UNKNOWN_340B_ID', 'ENTITY_NOT_ACTIVE_ON_INVOICE_DATE']
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
