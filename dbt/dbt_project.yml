@@ -1,11 +1,11 @@
 # dbt project for the 340B duplicate discount engine.
 #
 # Layers and Unity Catalog schemas (catalog duplicate_discount). The schema of a model is the name of its folder:
-#   raw           written by notebooks/parse_inbox.py, declared here as sources, never built by dbt
-#   staging       models/staging       one view per raw table: renamed, typed, nothing joined
-#   intermediate  models/intermediate  shared eligibility layer and matching across sources
-#   marts         models/marts         evidence tables of the three detection paths
-# The macro macros/generate_schema_name.sql makes dbt use these names as they are, without the default prefix.
+#   - raw           written by notebooks/parse_inbox.py, declared here as sources, never built by dbt
+#   - staging       models/staging       one view per raw table: renamed, typed, nothing joined
+#   - intermediate  models/intermediate  shared eligibility layer and matching across sources
+#   - marts         models/marts         evidence tables of the three detection paths
+# The macro macros/generate_schema_name.sql makes dbt use these names as they are, without prefix.
 #
 # The answer key lives in a separate schema that the engine never reads (guarded by tests/test_engine_isolation.py);
 # only the evaluation step compares the engine's output with it.
@@ -18,8 +18,7 @@ config-version: 2
 profile: duplicate_discount_340b
 
 model-paths: ["models"]
-# dbt reads dbt/seeds by default. That folder holds the generator's private seeds on the author's machine (it is
-# git-ignored and absent from the repository), and the engine must never load them, so seed loading is switched off.
+# dbt/seeds holds the generator's private seeds on the my machine
 seed-paths: []
 test-paths: ["tests"]
 macro-paths: ["macros"]

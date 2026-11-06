@@ -1,0 +1,160 @@
+# Staging models built from the 340B rebate Pilot files.
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Severity rule of the project: errors only for primary keys, warnings for everything else.
+
+version: 2
+
+models:
+  - name: stg_pilot_submissions
+    description: >
+      Claims covered entities submitted through the 340B rebate Pilot, one row per submission, typed, with NDC and
+      Rx number standardized next to the values as received. Synthetic data.
+    columns:
+      - name: submission_id
+        description: Identifier of the submission on the Pilot platform. Primary key.
+        data_tests: [unique, not_null]
+      - name: manufacturer_code
+        description: Manufacturer the submission was sent to, taken from the file name.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: channel
+        description: Submission channel. PILOT for the rebate Pilot platform.
+      - name: ce_340b_id
+        description: 340B ID of the covered entity that submitted the claim.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: submission_date
+        description: Date the entity submitted the claim. The Pilot allows 45 days from the date of service.
+      - name: date_of_service
+        description: Date the prescription was filled, as the entity reported it. Part of the claim key.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: date_prescribed
+        description: Date the prescription was written.
+      - name: rx_number
+        description: Prescription number as received, leading zeros included.
+      - name: rx_number_normalized
+        description: Prescription number without leading zeros, for matching. Part of the claim key.
+      - name: fill_number
+        description: 0 for the first fill, then 1, 2... for refills. Part of the claim key.
+      - name: ndc_as_submitted
+        description: NDC exactly as the entity sent it (11 digits, or a hyphenated 10-digit label form).
+      - name: ndc_format
+        description: Form the NDC arrived in (11-digit, 4-4-2, 5-3-2, 5-4-1, 5-4-2 hyphenated, unrecognized).
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['11-digit', '5-4-2 hyphenated', '4-4-2', '5-3-2', '5-4-1']
+      - name: ndc11
+        description: NDC in the 11-digit 5-4-2 form, standardized from ndc_as_submitted. NULL when unrecognized.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: quantity
+        description: Quantity dispensed, as submitted. Normally units; some entities send packages.
+      - name: days_supply
+        description: Number of days the quantity covers.
+      - name: prescriber_npi
+        description: NPI of the prescriber (synthetic).
+      - name: service_provider_npi
+        description: NPI of the dispensing pharmacy (synthetic).
+      - name: rx_bin
+        description: Bank Identification Number routing the pharmacy claim to its payer.
+      - name: rx_pcn
+        description: Processor Control Number routing the pharmacy claim within the payer.
+      - name: _source_file
+        description: Inbox file the record came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_pilot_rebate_status
+    description: >
+      The manufacturer's decision on each Pilot submission: paid, denied or rejected, with amounts and dates.
+      One row per submission. Synthetic data.
+    columns:
+      - name: submission_id
+        description: Identifier of the submission this decision answers. Primary key.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              config: {severity: warn}
+              arguments:
+                to: ref('stg_pilot_submissions')
+                field: submission_id
+      - name: manufacturer_code
+        description: Manufacturer that decided, taken from the file name.
+      - name: ce_340b_id
+        description: 340B ID of the covered entity.
+      - name: submission_date
+        description: Date the entity submitted the claim.
+      - name: date_of_service
+        description: Date of service as submitted.
+      - name: ndc_as_submitted
+        description: NDC as the entity sent it, repeated from the submission.
+      - name: ndc11
+        description: NDC in the 11-digit form, standardized.
+      - name: quantity
+        description: Submitted quantity the rebate was computed on.
+      - name: unit_wac
+        description: Wholesale Acquisition Cost per unit on the date of service (synthetic).
+      - name: unit_340b_price
+        description: 340B ceiling price per unit on the date of service (synthetic).
+      - name: rebate_amount
+        description: Rebate computed as quantity x (unit WAC - unit 340B price), US dollars.
+      - name: status
+        description: PAID, DENIED or REJECTED.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['PAID', 'DENIED', 'REJECTED']
+      - name: is_paid
+        description: True when the rebate was paid.
+      - name: denial_reason
+        description: >
+          Why a submission was not paid. REBATE_ALREADY_PAID_OTHER_CE and MFP_LOWER_THAN_CEILING are the two
+          grounds for denial; SUBMITTED_AFTER_45_DAYS rejects a late submission. Empty when paid.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['REBATE_ALREADY_PAID_OTHER_CE', 'MFP_LOWER_THAN_CEILING', 'SUBMITTED_AFTER_45_DAYS']
+      - name: decision_date
+        description: Date the manufacturer decided.
+      - name: payment_date
+        description: Date the rebate was paid. Empty unless paid.
+      - name: _source_file
+        description: Inbox file the record came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.
+
+  - name: stg_pilot_ceiling_prices
+    description: >
+      Quarterly WAC and 340B ceiling price per package for each Pilot NDC, as the manufacturer holds them.
+      One row per manufacturer, NDC and quarter. Synthetic data.
+    columns:
+      - name: manufacturer_code
+        description: Manufacturer, taken from the file name. Part of the key with ndc11 and year_quarter.
+      - name: ndc11
+        description: NDC, 11 digits. Part of the key.
+        data_tests:
+          - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+      - name: year_quarter
+        description: Quarter as written in the file, for example 2027Q1. Part of the key.
+      - name: quarter_start_date
+        description: First day of the quarter.
+        data_tests:
+          - not_null: {config: {severity: warn}}
+      - name: quarter_end_date
+        description: Last day of the quarter.
+      - name: package_days
+        description: Days of therapy one package covers.
+      - name: wac_per_package
+        description: Wholesale Acquisition Cost of one package in the quarter (synthetic).
+      - name: ceiling_price_per_package
+        description: 340B ceiling price of one package in the quarter (synthetic).
+      - name: _source_file
+        description: Inbox file the record came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

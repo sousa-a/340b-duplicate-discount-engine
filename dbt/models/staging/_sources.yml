@@ -108,10 +108,82 @@ sources:
         description: The manufacturer's refund decision and payment for each MTF record (refund code 1, 4 or 8).
       - name: pilot_submissions
         description: Claims covered entities submitted through the 340B rebate Pilot platform.
+        columns:
+          - name: submission_id
+            data_tests: [not_null, unique]
+          - name: submission_date
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: date}}
+          - name: date_of_service
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: date}}
+          - name: date_prescribed
+            data_tests:
+              - castable_to: {arguments: {data_type: date}}
+          - name: rx_number
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - matches_pattern: {arguments: {pattern: "^[0-9]+$"}}
+          - name: fill_number
+            data_tests:
+              - castable_to: {arguments: {data_type: int}}
+          - name: ndc11
+            description: >
+              Named ndc11 in the file, but entities also send hyphenated 10-digit label forms. The pattern test
+              below counts those; staging standardizes them.
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - matches_pattern: {arguments: {pattern: "^[0-9]{11}$"}}
+          - name: quantity
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - castable_to: {arguments: {data_type: "decimal(14,3)"}}
+          - name: prescriber_npi
+            data_tests:
+              - matches_pattern: {arguments: {pattern: "^[0-9]{10}$"}}
+          - name: service_provider_npi
+            data_tests:
+              - matches_pattern: {arguments: {pattern: "^[0-9]{10}$"}}
       - name: pilot_rebate_status
         description: The manufacturer's decision on each Pilot submission (paid, denied, rejected) and payment.
+        columns:
+          - name: submission_id
+            data_tests: [not_null, unique]
+          - name: quantity
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(14,3)"}}
+          - name: unit_wac
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(18,6)"}}
+          - name: unit_340b_price
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(18,6)"}}
+          - name: rebate_amount
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(18,2)"}}
+          - name: decision_date
+            data_tests:
+              - castable_to: {arguments: {data_type: date}}
+          - name: payment_date
+            data_tests:
+              - castable_to: {arguments: {data_type: date}}
       - name: pilot_ceiling_prices
         description: The manufacturer's quarterly WAC and 340B ceiling price per package, for Pilot drugs.
+        columns:
+          - name: year_quarter
+            data_tests:
+              - matches_pattern: {arguments: {pattern: "^[0-9]{4}Q[1-4]$"}}
+          - name: package_days
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(10,2)"}}
+          - name: wac_per_package
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(18,2)"}}
+          - name: ceiling_price_per_package
+            data_tests:
+              - castable_to: {arguments: {data_type: "decimal(18,2)"}}
       - name: state_invoice_manifest
         description: One row per CMS-R-144 invoice file received, with state, quarter and number of lines.
       - name: state_claim_level_detail
