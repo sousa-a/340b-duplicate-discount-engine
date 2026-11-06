@@ -24,6 +24,8 @@ models:
               arguments:
                 to: ref('stg_mtf_claims')
                 field: mtf_icn
+      - name: record_id
+        description: Record type of the MTF file. CLM for a claim record.
       - name: transaction_code
         description: ORIGINAL or REVERSAL.
         data_tests:
@@ -34,12 +36,30 @@ models:
                 values: ['ORIGINAL', 'REVERSAL']
       - name: is_reversal
         description: True when the record cancels an earlier one.
+      - name: medicare_source_of_coverage
+        description: Medicare benefit that paid the claim. D for Part D.
+      - name: contract_number
+        description: Part D plan contract number (synthetic, Z9001 to Z9005).
       - name: date_of_service
-        description: Date the prescription was filled.
+        description: Date the prescription was filled. Part of the claim key.
         data_tests:
           - not_null:
               config:
                 severity: warn
+      - name: process_date
+        description: Date the MTF processed the record.
+      - name: service_provider_id_qualifier
+        description: Type of the dispensing pharmacy identifier. 01 means NPI.
+      - name: service_provider_id
+        description: Identifier of the dispensing pharmacy (a synthetic NPI). Part of the claim key.
+      - name: prescriber_id_qualifier
+        description: Type of the prescriber identifier. 01 means NPI.
+      - name: prescriber_id
+        description: Identifier of the prescriber (a synthetic NPI).
+      - name: rx_number
+        description: Prescription number assigned by the pharmacy. Part of the claim key.
+      - name: fill_number
+        description: 0 for the first fill, then 1, 2... for refills. Part of the claim key.
       - name: ndc11
         description: National Drug Code, 11 digits.
       - name: quantity_dispensed
@@ -48,6 +68,8 @@ models:
           - not_null:
               config:
                 severity: warn
+      - name: days_supply
+        description: Number of days the dispensed quantity covers.
       - name: indicator_340b
         description: Raw 340B flag from the pharmacy, Y or empty.
         data_tests:
