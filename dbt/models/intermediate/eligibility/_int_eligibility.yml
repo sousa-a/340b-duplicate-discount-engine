@@ -1,0 +1,221 @@
+# Intermediate models of the shared eligibility layer: what the manufacturer's data shows about 340B status, read by
+# all three detection paths. Tables, not views, because every path reads them.
+# Column descriptions are written to Unity Catalog as column comments (persist_docs in dbt_project.yml).
+# Severity rule of the project: errors only for primary keys, warnings for everything else.
+
+version: 2
+
+models:
+  - name: int_340b_pathways
+    description: >
+      Registered routes by which a pharmacy could dispense 340B stock for a covered entity (OPAIS contract pharmacy,
+      Medicaid Exclusion File billing NPI), with the dates each was in force. Synthetic data.
+    columns:
+      - name: pharmacy_npi
+        description: NPI of the pharmacy (contract pharmacy NPI, or billing NPI on the Medicaid Exclusion File).
+      - name: ce_340b_id
+        description: Covered entity the route belongs to.
+      - name: pathway_type
+        description: contract_pharmacy or medicaid_ffs_carve_in.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['contract_pharmacy', 'medicaid_ffs_carve_in']
+      - name: medicaid_state_code
+        description: For medicaid_ffs_carve_in, the state whose fee for service Medicaid the route applies to.
+      - name: valid_from
+        description: First day the route was in force, within the entity's participation.
+      - name: valid_to
+        description: Last day the route was in force (9999-12-31 while open).
+      - name: opais_entity_type
+        description: OPAIS type of the covered entity.
+
+  - name: int_340b_purchases
+    description: >
+      340B purchases from EDI 844 chargeback lines the manufacturer did not dispute, with the ship-to pharmacy linked
+      to its NPI by name where OPAIS allows it. Synthetic data.
+    columns:
+      - name: sale_line_id
+        description: Wholesaler's sale line identifier. Primary key.
+        data_tests: [unique, not_null]
+      - name: debit_memo_number
+        description: Debit memo of the chargeback.
+      - name: manufacturer_code
+        description: Manufacturer charged back.
+      - name: wholesaler_id
+        description: Wholesaler that sold the drug.
+      - name: ce_340b_id
+        description: Covered entity whose 340B account bought the drug.
+      - name: ship_to_name
+        description: Pharmacy the drug was shipped to, as named on the 844.
+      - name: ship_to_dea
+        description: DEA number of the ship-to pharmacy.
+      - name: pharmacy_npi
+        description: NPI of the ship-to pharmacy, found by its name in the OPAIS contract pharmacy list. NULL when not found.
+      - name: pharmacy_link_method
+        description: How the NPI was found (opais_contract_pharmacy_name) or unlinked. See tests/intermediate/assert_int_340b_purchases_linked.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: invoice_number
+        description: Wholesaler invoice of the sale.
+      - name: invoice_date
+        description: Date of the sale.
+      - name: quantity_packages
+        description: Packages sold.
+      - name: contract_price_per_package
+        description: 340B contract price of one package (synthetic).
+      - name: wac_per_package
+        description: WAC of one package (synthetic).
+      - name: chargeback_amount
+        description: Amount charged back to the manufacturer.
+      - name: _source_file
+        description: 844 file the line came from.
+
+  - name: int_dispensing_claims
+    description: >
+      Every dispensing claim the manufacturer receives (MTF, Medicaid claim-level detail, Pilot submissions) in one
+      shape, keyed by source and the source's own identifier. Synthetic data.
+    columns:
+      - name: source
+        description: mtf, medicaid_cld or pilot. Part of the key.
+      - name: source_record_id
+        description: >
+          Identifier in the source: MTF ICN, Pilot submission ID, or for Medicaid a hash of file, Rx number, fill,
+          date of service, NDC and pharmacy (claim-level detail has no claim identifier). Part of the key.
+      - name: manufacturer_code
+        description: Manufacturer of the drug.
+      - name: payer_channel
+        description: medicare_part_d, medicaid_ffs, medicaid_mco or pilot_submission.
+      - name: pharmacy_npi
+        description: NPI of the dispensing pharmacy.
+      - name: rx_number_normalized
+        description: Prescription number without leading zeros.
+      - name: fill_number
+        description: 0 for the first fill, then 1, 2... for refills.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: date_of_service
+        description: Date of service as the source reports it.
+      - name: quantity
+        description: Quantity as the source reports it (units, or packages for some Pilot submissions).
+      - name: ce_340b_id
+        description: Covered entity, for Pilot submissions only.
+      - name: is_flagged_340b
+        description: The pharmacy's own 340B flag, for MTF records only.
+      - name: _source_file
+        description: Inbox file the claim came from.
+
+  - name: int_claim_matches
+    description: >
+      Pairs of records describing the same fill, across sources and between Pilot submissions. Same pharmacy, Rx,
+      fill and NDC; date of service within the tolerance; quantity compared. Synthetic data.
+    columns:
+      - name: left_source
+        description: Source of the first record (alphabetical order of sources). Part of the key.
+      - name: left_record_id
+        description: Identifier of the first record. Part of the key.
+      - name: right_source
+        description: Source of the second record. Part of the key.
+      - name: right_record_id
+        description: Identifier of the second record. Part of the key.
+      - name: pharmacy_npi
+        description: Pharmacy both records share.
+      - name: rx_number_normalized
+        description: Rx number both records share.
+      - name: fill_number
+        description: Fill number both records share.
+      - name: ndc11
+        description: NDC both records share.
+      - name: left_date_of_service
+        description: Date of service on the first record.
+      - name: right_date_of_service
+        description: Date of service on the second record.
+      - name: date_difference_days
+        description: Days between the two dates of service.
+      - name: left_quantity
+        description: Quantity on the first record.
+      - name: right_quantity
+        description: Quantity on the second record.
+      - name: left_ce_340b_id
+        description: Covered entity on the first record (Pilot only).
+      - name: right_ce_340b_id
+        description: Covered entity on the second record (Pilot only).
+      - name: match_type
+        description: exact, date_shifted, quantity_differs or date_shifted_quantity_differs.
+
+  - name: int_claim_matches_by_date_offset
+    description: Number of matches per pair of sources and day of difference in date of service.
+    columns:
+      - name: left_source
+        description: Source of the first record.
+      - name: right_source
+        description: Source of the second record.
+      - name: date_difference_days
+        description: Days between the dates of service.
+      - name: matches
+        description: Number of matched pairs.
+      - name: matches_with_quantity_difference
+        description: Of those, pairs whose quantities differ.
+
+  - name: int_claim_340b_evidence
+    description: >
+      For every MTF and Medicaid claim, the evidence of 340B status found in the manufacturer's data and the evidence
+      level it adds up to (claim_level, pathway_and_purchase, pathway_only, none). Synthetic data.
+    columns:
+      - name: source
+        description: mtf or medicaid_cld. Part of the key.
+      - name: source_record_id
+        description: Identifier in the source. Part of the key.
+      - name: manufacturer_code
+        description: Manufacturer of the drug.
+      - name: payer_channel
+        description: medicare_part_d, medicaid_ffs or medicaid_mco.
+      - name: pharmacy_npi
+        description: NPI of the dispensing pharmacy.
+      - name: rx_number_normalized
+        description: Prescription number without leading zeros.
+      - name: fill_number
+        description: Fill number.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: date_of_service
+        description: Date of service.
+      - name: quantity
+        description: Quantity dispensed.
+      - name: pilot_submissions
+        description: Number of Pilot submissions matched to this claim.
+      - name: pilot_entities
+        description: Number of distinct covered entities among those submissions.
+      - name: pilot_ce_340b_ids
+        description: Covered entities that submitted this fill to the Pilot.
+      - name: pilot_submission_ids
+        description: Pilot submissions matched.
+      - name: pilot_statuses
+        description: Decisions on those submissions (PAID, DENIED, REJECTED).
+      - name: pilot_match_types
+        description: How well the submissions matched (exact, date_shifted, quantity_differs...).
+      - name: is_flagged_340b
+        description: The pharmacy flagged the MTF record as 340B.
+      - name: contract_pharmacy_entities
+        description: Covered entities for which the pharmacy was a contract pharmacy on the date of service.
+      - name: medicaid_carve_in_entities
+        description: Covered entities that listed this pharmacy NPI on the Medicaid Exclusion File, in force on the date.
+      - name: pathway_ce_340b_ids
+        description: Covered entities with a route through this pharmacy on the date of service.
+      - name: purchase_lines
+        description: 340B chargeback lines for this pharmacy and NDC within the purchase window after the date of service.
+      - name: first_purchase_date
+        description: Date of the first such purchase.
+      - name: purchase_ce_340b_ids
+        description: Covered entities whose 340B accounts made those purchases.
+      - name: evidence_level
+        description: claim_level, pathway_and_purchase, pathway_only or none.
+        data_tests:
+          - not_null
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['claim_level', 'pathway_and_purchase', 'pathway_only', 'none']
+      - name: _source_file
+        description: Inbox file the claim came from.

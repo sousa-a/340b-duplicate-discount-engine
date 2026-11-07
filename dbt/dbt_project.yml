@@ -1,11 +1,11 @@
 # dbt project for the 340B duplicate discount engine.
 #
 # Layers and Unity Catalog schemas (catalog duplicate_discount). The schema of a model is the name of its folder:
-#   - raw           written by notebooks/parse_inbox.py, declared here as sources, never built by dbt
-#   - staging       models/staging       one view per raw table: renamed, typed, nothing joined
-#   - intermediate  models/intermediate  shared eligibility layer and matching across sources
-#   - marts         models/marts         evidence tables of the three detection paths
-# The macro macros/generate_schema_name.sql makes dbt use these names as they are, without prefix.
+#   raw           written by notebooks/parse_inbox.py, declared here as sources, never built by dbt
+#   staging       models/staging       one view per raw table: renamed, typed, nothing joined
+#   intermediate  models/intermediate  shared eligibility layer and matching across sources
+#   marts         models/marts         evidence tables of the three detection paths
+# The macro macros/generate_schema_name.sql makes dbt use these names as they are, without the default prefix.
 #
 # The answer key lives in a separate schema that the engine never reads (guarded by tests/test_engine_isolation.py);
 # only the evaluation step compares the engine's output with it.
@@ -18,8 +18,18 @@ config-version: 2
 profile: duplicate_discount_340b
 
 model-paths: ["models"]
-# dbt/seeds holds the generator's private seeds on the my machine
+# dbt reads dbt/seeds by default. That folder holds the generator's private seeds on the author's machine (it is
+# git-ignored and absent from the repository), and the engine must never load them, so seed loading is switched off.
 seed-paths: []
+
+# Engine parameters. Each one is a choice of the engine, not a published rule; models read them with var().
+vars:
+  # Largest difference in date of service, in days, for two records to count as the same fill. The model
+  # int_claim_matches_by_date_offset reports how many matches each day of difference adds, so the choice is visible.
+  date_match_tolerance_days: 7
+  # A 340B purchase supports a dispensing claim when the wholesaler invoice for that pharmacy and NDC falls within
+  # this many days after the date of service (replenishment follows dispensing).
+  purchase_window_days: 90
 test-paths: ["tests"]
 macro-paths: ["macros"]
 target-path: "target"
@@ -44,7 +54,26 @@ models:
 
 data_tests:
   duplicate_discount_340b:
-    # Keep the failing rows of every test in a table in the data_quality schema, so a failure can be inspected
-    # row by row instead of only counted.
-    +store_failures: true
+    # Where test results go. Unity Catalog allows a fixed number of tables per schema (100 on this workspace), and
+    # store_failures creates one table per test, so failing rows are kept only for the singular tests in tests/
+    # (reconciliations and keys, the checks worth reading row by row). Every test, generic or singular, is still
+    # recorded run by run in one table, data_quality.test_results, by the on-run-end hook below.
     +schema: data_quality
+    +store_failures: false
+    edi:
+      +store_failures: true
+    hrsa:
+      +store_failures: true
+    medicaid:
+      +store_failures: true
+    mtf:
+      +store_failures: true
+    pilot:
+      +store_failures: true
+    intermediate:
+      +store_failures: true
+
+# After every dbt run or build: append one row per test to data_quality.test_results (macros/log_test_results.sql),
+# a history of data quality across runs.
+on-run-end:
+  - "{{ log_test_results(results) }}"
