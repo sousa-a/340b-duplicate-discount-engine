@@ -24,6 +24,20 @@ sources:
     tables:
       - name: manufacturer_codes
         description: Code used in file names and EDI headers for each manufacturer (MFR001...), with its name.
+      - name: pharmacy_directory
+        description: >
+          Synthetic pharmacy directory (NPI, DEA number, name, state), standing in for the licensed pharmacy
+          directories manufacturers use to link the DEA numbers on wholesaler files to the NPIs on claims.
+        columns:
+          - name: pharmacy_npi
+            data_tests:
+              - not_null
+              - unique
+              - matches_pattern: {arguments: {pattern: "^[0-9]{10}$"}}
+          - name: dea_number
+            data_tests:
+              - not_null: {config: {severity: warn}}
+              - matches_pattern: {arguments: {pattern: "^[A-Z]{2}[0-9]{7}$"}}
       - name: hrsa_opais_covered_entities
         description: Covered entities as HRSA publishes them in OPAIS (Office of Pharmacy Affairs Information System).
       - name: hrsa_opais_contract_pharmacies

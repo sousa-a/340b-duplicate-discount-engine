@@ -1,32 +1,29 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "6"
-# ///
 # MAGIC %md
 # MAGIC # parse_inbox
 # MAGIC
-# MAGIC All records read here are **synthetic**. Real public data is used only for sourced parameters and seeds. See SYNTHETIC_DATA_NOTICE.md in the repository.
+# MAGIC All records read here are synthetic. Real public data is used only for sourced parameters and seeds. See SYNTHETIC_DATA_NOTICE.md in the repository.
 # MAGIC
-# MAGIC This one reads what would be the manufacturer inbox from the Unity Catalog volume `raw.inbox` and writes one Delta table per file type in the `raw` schema. This first section covers the CSV files. The X12 files (844, 849, 867) and the invoices get their own sections later.
+# MAGIC Reads the manufacturer inbox from the Unity Catalog volume `raw.inbox` and writes one Delta table per file type in the `raw` schema. This first section covers the CSV files. The X12 files (844, 849, 867) and the fixed-width CMS-R-144 invoices get their own sections later.
 # MAGIC
-# MAGIC Rules for the RAW layer:
-# MAGIC - every value stays _text_, exactly as received (an empty field becomes NULL);
-# MAGIC - every row carries the _name of the file_ it came from (`_source_file`) and the _time it was loaded_ (`_ingested_at`);
+# MAGIC Rules for the raw layer:
+# MAGIC - every value stays text, exactly as received (an empty field becomes NULL, which is how Spark reads an empty CSV field);
+# MAGIC - every row carries the name of the file it came from (`_source_file`) and the time it was loaded (`_ingested_at`);
 # MAGIC - typing, NDC normalization and matching happen later, in dbt staging and intermediate models;
-# MAGIC - each table is rewritten in full on every run.
+# MAGIC - each table is rewritten in full on every run, so running the notebook twice gives the same tables.
 # MAGIC
-# MAGIC Before writing a table, the notebook checks its structure and halts if something is off:
+# MAGIC Before writing a table, the notebook checks its structure and stops with an error if something is off:
 # MAGIC 1. at least one file matches the pattern;
-# MAGIC 2. every file has exactly the expected header, in the expected order;
-# MAGIC 3. every row has as many fields as the header;
+# MAGIC 2. every file has exactly the expected header, in the expected order (Spark compares each file's header, not only the first one);
+# MAGIC 3. every row has as many fields as the header (FAILFAST mode raises on a short or long row);
 # MAGIC 4. no header line was read as data;
-# MAGIC 5. row count check after the table is written.
+# MAGIC 5. the table read back after the write has the same row count.
 # MAGIC
-# MAGIC Runs on serverless compute, DataFrame API only.
+# MAGIC Runs on serverless compute: DataFrame API only, no RDD and no sparkContext.
 
 # COMMAND ----------
 
+# Parameters. The defaults match the catalog, schema and volume created in the workspace.
 dbutils.widgets.text("catalog", "duplicate_discount")
 dbutils.widgets.text("inbox_path", "/Volumes/duplicate_discount/raw/inbox")
 
@@ -34,15 +31,15 @@ CATALOG = dbutils.widgets.get("catalog").strip()
 INBOX = dbutils.widgets.get("inbox_path").strip().rstrip("/")
 RAW_SCHEMA = f"{CATALOG}.raw"
 
-print(f"[parse_inbox] catalog : {CATALOG}")
-print(f"[parse_inbox] raw schema : {RAW_SCHEMA}")
+print(f"[parse_inbox] catalog      : {CATALOG}")
+print(f"[parse_inbox] raw schema   : {RAW_SCHEMA}")
 print(f"[parse_inbox] inbox volume : {INBOX}")
 
 # COMMAND ----------
 
-# Schema validation and standards enforced! The headers are the file formats as the manufacturer receives them.
-# If a file arrives with a different header, the notebook stops instead of guessing.
-
+# The CSV files of the inbox: target table -> (file pattern relative to the inbox, expected header in order).
+# The headers are the file formats as the manufacturer receives them. If a file arrives with a different header,
+# the notebook stops instead of guessing, because a silent column shift would corrupt every match downstream.
 CSV_SOURCES = {
     "manufacturer_codes": (
         "edi/manufacturer_codes.csv",
@@ -96,25 +93,29 @@ CSV_SOURCES = {
         "state_invoices/invoice_manifest.csv",
         ["file", "state_code", "manufacturer_code", "period_covered", "invoice_date", "lines"],
     ),
-    # Claim-level detail is loaded whole
+    # Claim-level detail is loaded whole; the engine only uses the detail behind invoice lines it has disputed,
+    # and that filter belongs in dbt, where it can be tested.
     "state_claim_level_detail": (
         "state_claim_level_detail/cld_*.csv",
         ["state_code", "record_id", "period_covered", "ndc11", "rx_number", "fill_number", "date_of_service",
          "date_paid", "service_provider_npi", "prescriber_npi", "units", "medicaid_amount_reimbursed"],
     ),
+    # Synthetic stand-in for a licensed pharmacy directory that links wholesaler DEA numbers to claim NPIs.
+       "pharmacy_directory": (
+           "reference/pharmacy_directory.csv",
+           ["pharmacy_npi", "dea_number", "pharmacy_name", "state_code"],
+       ),
 }
 
 print(f"[parse_inbox] CSV file types to load: {len(CSV_SOURCES)}")
-
 
 # COMMAND ----------
 
 from pyspark.sql import functions as F
 
-# Byte Order Mark (BOM) mitigation
 # The generator writes CSV in UTF-8 with a byte order mark (utf-8-sig), so the first header field of every file
-# starts with U+FEFF. Since Spark keeps that character in the column name; it is stripped here.
-BOM = "\ufeff"
+# starts with U+FEFF. Spark keeps that character in the column name; it is stripped here.
+BOM = "﻿"
 
 
 class InboxStructureError(Exception):
@@ -122,7 +123,7 @@ class InboxStructureError(Exception):
 
 
 def read_inbox_csv(pattern: str, expected: list):
-    """Read every file matching the pattern as text. Check its structure and add the lineage columns."""
+    """Read every file matching the pattern as text, check its structure and add the lineage columns."""
     path = f"{INBOX}/{pattern}"
     reader = (
         spark.read.format("csv")
@@ -135,19 +136,20 @@ def read_inbox_csv(pattern: str, expected: list):
     try:
         df = reader.load(path)
     except Exception as exc:
-        # check 1 - no file (PATH_NOT_FOUND)
+        # check 1: no file at all ends up here too (Spark raises PATH_NOT_FOUND)
         raise InboxStructureError(f"cannot read {path}: {exc}") from exc
 
-    found = [c.replace(BOM, "") for c in df.columns] # BOM stripping
+    found = [c.replace(BOM, "") for c in df.columns]
     if found != expected:
         missing = [c for c in expected if c not in found]
         extra = [c for c in found if c not in expected]
         raise InboxStructureError(
-            f">>>{pattern}: header differs from the expected format! missing {missing}, unexpected {extra}, "
+            f"{pattern}: header differs from the expected format; missing {missing}, unexpected {extra}, "
             f"found order {found}"
         )
 
-    # Rename the BOM column and add lineage columns.
+    # Rename the BOM column and add lineage. _metadata.file_name is selected in the same projection as the data
+    # columns, because the hidden _metadata column is only available directly on the file source.
     return df.select(
         *[F.col(f"`{raw}`").alias(clean) for raw, clean in zip(df.columns, found)],
         F.col("_metadata.file_name").alias("_source_file"),
@@ -158,6 +160,10 @@ def read_inbox_csv(pattern: str, expected: list):
 def check_and_write(table: str, df, expected: list) -> dict:
     """Run checks 4 and 5 around the write and return the counts for the summary."""
     first = expected[0]
+    # The widest row (all fields joined) is computed only to make Spark parse every column. Without it, Spark
+    # parses just the columns this aggregate needs, and a header mismatch or a row with an extra field would only
+    # surface later, during the write (seen in the local test). With it, checks 2 and 3 fail here, before anything
+    # is written.
     try:
         stats = df.agg(
             F.count(F.lit(1)).alias("rows"),
@@ -166,8 +172,9 @@ def check_and_write(table: str, df, expected: list) -> dict:
             F.max(F.length(F.concat_ws(",", *[F.col(c) for c in expected]))).alias("widest_row"),
         ).collect()[0]
     except Exception as exc:
+        # Spark wraps the cause in several layers; keep the line that names it (header or malformed record).
         lines = str(exc).splitlines()
-        named = [l for l in lines if "CSV header does not conform" in l or ">>> Malformed CSV record" in l]
+        named = [l for l in lines if "CSV header does not conform" in l or "Malformed CSV record" in l]
         reason = (named[0] if named else lines[0]).strip()[:600]
         raise InboxStructureError(f"{table}: a file does not have the expected structure; Spark says: {reason}") from exc
     rows, files, header_rows = stats["rows"], stats["files"], stats["header_rows"] or 0
@@ -192,7 +199,7 @@ def check_and_write(table: str, df, expected: list) -> dict:
 
 # COMMAND ----------
 
-# Load every CSV file type. One failure stops the run.
+# Load every CSV file type. One failure stops the run, so a partial raw layer is never mistaken for a full one.
 summary = []
 for table, (pattern, expected) in CSV_SOURCES.items():
     print(f"[parse_inbox] reading {pattern}")
@@ -208,14 +215,11 @@ display(spark.createDataFrame(summary))
 # MAGIC %md
 # MAGIC ## X12 files (844, 849, 867)
 # MAGIC
-# MAGIC The EDI files arrive in ANSI X12 version 004010.
-# MAGIC The interchange is held by a file that has an `ISA` envelope, the functional groups (`GS` ... `GE`), and the transaction sets (`ST` ... `SE`) that carry the business data. The interchange closes with `IEA`.
+# MAGIC The EDI files arrive in ANSI X12 version 004010. One file holds one interchange: an `ISA` envelope, functional groups (`GS` ... `GE`), and inside them the transaction sets (`ST` ... `SE`) that carry the business data. The interchange closes with `IEA`.
 # MAGIC
-# MAGIC The raw layer keeps X12 as received, one row per segment, and does not interpret the loops yet (which `SII` line belongs to which pharmacy, which `N9` holds the invoice). It groups which line belongs to which pharmacy, which `N9` holds the invoice etc. Then, all that grouped business logic goes to dbt staging, where it is visible and tested.
+# MAGIC The raw layer keeps X12 as received, one row per segment, and does not interpret the loops yet (which `SII` line belongs to which pharmacy, which `N9` holds the invoice). That grouping is business logic and goes to dbt staging, where it is visible and tested. What this section adds to each segment is only its address in the file: position, interchange, group and transaction control numbers.
 # MAGIC
-# MAGIC What this section adds to each segment is only its address in the file including position, interchange, group and transaction control numbers.
-# MAGIC
-# MAGIC The `elements` is an array whose position 0 is the segment ID, **so position 1 is element 01 of the X12 standard** (`SII` element 02, the NDC, is `elements[2]` in Spark SQL).
+# MAGIC `elements` is an array whose position 0 is the segment ID, so position 1 is element 01 of the X12 standard (`SII` element 02, the NDC, is `elements[2]` in Spark SQL).
 # MAGIC
 # MAGIC Envelope checks, all from the X12 envelope rules. Any failure stops the run before the table is written:
 # MAGIC 1. delimiters read from the `ISA` segment are the expected ones (element `|`, component `>`, segment `~`), so the file can be split safely;
@@ -263,7 +267,7 @@ def read_x12_segments(kind: str):
     # Some senders break lines after each segment terminator; line breaks are not part of X12 content.
     files = files.withColumn("text", F.regexp_replace("text", "[\\r\\n]", ""))
 
-    # Check 1 - delimiters declared in each file's ISA.
+    # Check 1: delimiters declared in each file's ISA.
     bad_delims = files.where(
         (F.substring("text", 4, 1) != ELEMENT_SEP)
         | (F.substring("text", 105, 1) != COMPONENT_SEP)
@@ -308,7 +312,7 @@ def check_x12_envelopes(kind: str, gs01: str, segs) -> dict:
     sid = F.col("segment_id")
     problems = {}
 
-    # Check 2 - ISA length and ISA/IEA balance per file.
+    # Check 2: ISA length and ISA/IEA balance per file.
     per_file = segs.groupBy("_source_file").agg(
         F.sum(F.when(sid == "ISA", 1).otherwise(0)).alias("isa"),
         F.sum(F.when(sid == "IEA", 1).otherwise(0)).alias("iea"),
@@ -317,11 +321,11 @@ def check_x12_envelopes(kind: str, gs01: str, segs) -> dict:
     problems["ISA/IEA count or ISA length"] = per_file.where(
         (F.col("isa") != F.col("iea")) | (F.col("isa") < 1) | (F.col("isa_len") != ISA_LENGTH))
 
-    # Check 3 - transaction set and functional identifier.
+    # Check 3: transaction set and functional identifier.
     problems[f"ST01 not {kind}"] = segs.where((sid == "ST") & (e[1] != kind))
     problems[f"GS01 not {gs01}"] = segs.where((sid == "GS") & (e[1] != gs01))
 
-    # Check 4 - SE01 counts the segments from ST to SE inclusive; SE02 repeats ST02.
+    # Check 4: SE01 counts the segments from ST to SE inclusive; SE02 repeats ST02.
     txn = segs.where(F.col("st_control_number").isNotNull()).groupBy("_source_file", "st_control_number").agg(
         F.count(F.lit(1)).alias("segments"),
         F.max(F.when(sid == "SE", e[1].cast("int"))).alias("se01"),
@@ -332,7 +336,7 @@ def check_x12_envelopes(kind: str, gs01: str, segs) -> dict:
         (F.col("se01").isNull()) | (F.col("se01") != F.col("segments"))
         | (F.col("se02") != F.col("st_control_number")) | (F.col("st") != 1))
 
-    # Check 5 - GE01 counts the transaction sets of its group; GE02 repeats GS06.
+    # Check 5: GE01 counts the transaction sets of its group; GE02 repeats GS06.
     grp = segs.where(F.col("gs_control_number").isNotNull()).groupBy("_source_file", "gs_control_number").agg(
         F.sum(F.when(sid == "ST", 1).otherwise(0)).alias("st"),
         F.max(F.when(sid == "GE", e[1].cast("int"))).alias("ge01"),
@@ -341,7 +345,7 @@ def check_x12_envelopes(kind: str, gs01: str, segs) -> dict:
     problems["GE01 count or GE02 control number"] = grp.where(
         (F.col("ge01").isNull()) | (F.col("ge01") != F.col("st")) | (F.col("ge02") != F.col("gs_control_number")))
 
-    # Check 6 - IEA01 counts the groups of its interchange; IEA02 repeats ISA13.
+    # Check 6: IEA01 counts the groups of its interchange; IEA02 repeats ISA13.
     ich = segs.groupBy("_source_file", "isa_control_number").agg(
         F.sum(F.when(sid == "GS", 1).otherwise(0)).alias("gs"),
         F.max(F.when(sid == "IEA", e[1].cast("int"))).alias("iea01"),
@@ -368,28 +372,43 @@ def check_x12_envelopes(kind: str, gs01: str, segs) -> dict:
 
 # Parse, check and write each X12 folder.
 # The checks read the segments six times. Serverless compute does not support df.cache(), and re-reading thousands
-# of files for every check would be slow, so the segments are first written once to a holding table
-# (<table>__incoming) and the checks run on that Delta table. Only if every check passes does the holding table
-# replace the real one. If a check fails, the holding table is dropped and the previous raw table stays as it was.
+# of files for every check would be slow, so the segments are written once to the raw table and the checks run on
+# that Delta table. If a check fails, the table is put back to the Delta version it had before this write
+# (RESTORE), or dropped if it did not exist yet, so a table that failed its checks never stays in raw.
+# Writing straight to the real table, instead of to a holding table renamed afterwards, keeps Unity Catalog
+# lineage: lineage is recorded for the table a query writes, and a rename is not a write.
+
+
+def table_version(name: str):
+    """Current Delta version of a table, or None when the table does not exist yet."""
+    if not spark.catalog.tableExists(name):
+        return None
+    return spark.sql(f"DESCRIBE HISTORY {name} LIMIT 1").collect()[0]["version"]
+
+
+def undo_write(name: str, version_before) -> None:
+    """Put a table back as it was before the last write: restore the earlier version, or drop a new table."""
+    if version_before is None:
+        spark.sql(f"DROP TABLE IF EXISTS {name}")
+        print(f"[parse_inbox] {name} failed its checks and was dropped (it did not exist before this run)")
+    else:
+        spark.sql(f"RESTORE TABLE {name} TO VERSION AS OF {version_before}")
+        print(f"[parse_inbox] {name} failed its checks and was restored to version {version_before}")
+
+
 for kind, (table, gs01) in X12_SOURCES.items():
     print(f"[parse_inbox] reading edi/{kind}/*.x12")
     target = f"{RAW_SCHEMA}.{table}"
-    incoming = f"{target}__incoming"
-    read_x12_segments(kind).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(incoming)
+    version_before = table_version(target)
+    read_x12_segments(kind).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(target)
     try:
-        counts = check_x12_envelopes(kind, gs01, spark.table(incoming))
+        counts = check_x12_envelopes(kind, gs01, spark.table(target))
     except Exception:
-        spark.sql(f"DROP TABLE IF EXISTS {incoming}")
-        print(f"[parse_inbox] {incoming} dropped; {target} left unchanged")
+        undo_write(target, version_before)
         raise
+    written = counts["segments"]
 
-    spark.sql(f"DROP TABLE IF EXISTS {target}")
-    spark.sql(f"ALTER TABLE {incoming} RENAME TO {target}")
-    written = spark.table(target).count()
-    if written != counts["segments"]:
-        raise InboxStructureError(f"{target}: {counts['segments']} segments checked but {written} rows after the rename")
-
-    # columns - : the 8 segment columns, leaving out the two lineage columns, as in the CSV summary
+    # columns: the 8 segment columns, leaving out the two lineage columns, as in the CSV summary
     n_columns = len([c for c in spark.table(target).columns if c not in ("_source_file", "_ingested_at")])
     print(f"[parse_inbox] {target:<52} {counts['files']:>6,} file(s) {written:>10,} rows {n_columns:>3} columns  structure OK")
     summary.append({"table": target, "files": counts["files"], "rows": written, "columns": n_columns})
@@ -477,7 +496,7 @@ def check_r144(lines) -> dict:
     for n, d in R144_DECIMALS.items():
         problems[f"{n} not digits with {d} decimals"] = lines.where(~c(n).rlike(f"^[0-9]+\\.[0-9]{{{d}}}$"))
 
-    # Check 5 - the manifest written by the CSV section, against the files actually read.
+    # Check 5: the manifest written by the CSV section, against the files actually read.
     manifest = spark.table(f"{RAW_SCHEMA}.state_invoice_manifest").select(
         c("file").alias("_source_file"), c("lines").cast("int").alias("manifest_lines"))
     per_file = lines.groupBy("_source_file").agg(F.count(F.lit(1)).alias("lines_read"))
@@ -497,22 +516,18 @@ def check_r144(lines) -> dict:
 
 # COMMAND ----------
 
+# Same pattern as the X12 section: write to the raw table, check it there, and restore the previous version if a
+# check fails (table_version and undo_write are defined in the X12 section).
 target = f"{RAW_SCHEMA}.state_invoice_lines"
-incoming = f"{target}__incoming"
+version_before = table_version(target)
 print("[parse_inbox] reading state_invoices/r144_*.txt")
-read_r144_lines().write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(incoming)
+read_r144_lines().write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(target)
 try:
-    counts = check_r144(spark.table(incoming))
+    counts = check_r144(spark.table(target))
 except Exception:
-    spark.sql(f"DROP TABLE IF EXISTS {incoming}")
-    print(f"[parse_inbox] {incoming} dropped; {target} left unchanged")
+    undo_write(target, version_before)
     raise
-
-spark.sql(f"DROP TABLE IF EXISTS {target}")
-spark.sql(f"ALTER TABLE {incoming} RENAME TO {target}")
-written = spark.table(target).count()
-if written != counts["lines"]:
-    raise InboxStructureError(f"{target}: {counts['lines']} lines checked but {written} rows after the rename")
+written = counts["lines"]
 
 n_columns = len([c for c in spark.table(target).columns if c not in ("_source_file", "_ingested_at")])
 print(f"[parse_inbox] {target:<52} {counts['files']:>6,} file(s) {written:>10,} rows {n_columns:>3} columns  structure OK")

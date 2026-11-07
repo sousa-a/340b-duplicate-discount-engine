@@ -16,3 +16,24 @@ models:
         description: Inbox file the row came from.
       - name: _ingested_at
         description: When the raw table was loaded.
+
+  - name: stg_pharmacy_directory
+    description: >
+      Synthetic pharmacy directory, one row per pharmacy: NPI, DEA number, name, state. Stands in for a licensed
+      directory used to link wholesaler DEA numbers to claim NPIs. Synthetic data.
+    columns:
+      - name: pharmacy_npi
+        description: NPI of the pharmacy (synthetic). Primary key.
+        data_tests: [unique, not_null]
+      - name: dea_number
+        description: DEA registration number of the pharmacy (synthetic, check digit fails on purpose).
+        data_tests:
+          - unique: {config: {severity: warn}}
+      - name: pharmacy_name
+        description: Name of the pharmacy (synthetic).
+      - name: state_code
+        description: State of the pharmacy.
+      - name: _source_file
+        description: Inbox file the row came from.
+      - name: _ingested_at
+        description: When the raw table was loaded.

@@ -34,7 +34,7 @@ models:
   - name: int_340b_purchases
     description: >
       340B purchases from EDI 844 chargeback lines the manufacturer did not dispute, with the ship-to pharmacy linked
-      to its NPI by name where OPAIS allows it. Synthetic data.
+      to its NPI through the pharmacy directory (DEA number), else by name through OPAIS. Synthetic data.
     columns:
       - name: sale_line_id
         description: Wholesaler's sale line identifier. Primary key.
@@ -52,9 +52,9 @@ models:
       - name: ship_to_dea
         description: DEA number of the ship-to pharmacy.
       - name: pharmacy_npi
-        description: NPI of the ship-to pharmacy, found by its name in the OPAIS contract pharmacy list. NULL when not found.
+        description: NPI of the ship-to pharmacy, found by DEA number in the pharmacy directory, else by name in OPAIS. NULL when not found.
       - name: pharmacy_link_method
-        description: How the NPI was found (opais_contract_pharmacy_name) or unlinked. See tests/intermediate/assert_int_340b_purchases_linked.
+        description: How the NPI was found (dea_directory, opais_contract_pharmacy_name) or unlinked. See tests/intermediate/assert_int_340b_purchases_linked.
       - name: ndc11
         description: NDC, 11 digits.
       - name: invoice_number

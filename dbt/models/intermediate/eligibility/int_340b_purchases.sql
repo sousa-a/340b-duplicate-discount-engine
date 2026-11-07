@@ -2,16 +2,27 @@
 -- 340B purchases the manufacturer knows about: chargeback lines from the EDI 844 files, minus the lines it disputed.
 -- One row per chargeback line. Each line is a sale to a covered entity's 340B account, shipped to a pharmacy.
 --
--- The 844 names the ship-to pharmacy by name and DEA number, while dispensing claims use the pharmacy NPI. The link is
--- made by name against the OPAIS contract pharmacy list, the only public file with both a pharmacy name and an NPI.
--- Entity-owned pharmacies are not in that list, so their purchases keep pharmacy_npi NULL and
--- pharmacy_link_method 'unlinked'; they count in the totals but cannot support a claim.
+-- The 844 names the ship-to pharmacy by name and DEA number, while dispensing claims use the pharmacy NPI. The link
+-- is made in this order:
+--   1. dea_directory                  the ship-to DEA number found in the pharmacy directory (inbox/reference), a
+--                                     synthetic stand-in for the licensed directories manufacturers use
+--   2. opais_contract_pharmacy_name   otherwise, the ship-to name found in the OPAIS contract pharmacy list
+-- A purchase linked by neither keeps pharmacy_npi NULL and pharmacy_link_method 'unlinked'; it counts in the totals
+-- but cannot support a claim (tests/intermediate/assert_int_340b_purchases_linked reports how many).
 --
 -- Quantities are packages, as the 844 sends them. Claims count units, and no inbox file gives units per package, so
 -- this layer checks that a purchase exists for a claim, not how many units it covers.
 -- All data is synthetic (SYNTHETIC_DATA_NOTICE.md).
 
-with pharmacy_names as (
+with directory as (
+
+    select dea_number, pharmacy_npi
+    from {{ ref('stg_pharmacy_directory') }}
+    where dea_number is not null
+
+),
+
+pharmacy_names as (
 
     select distinct pharmacy_name, pharmacy_npi
     from {{ ref('stg_hrsa_contract_pharmacies') }}
@@ -35,9 +46,12 @@ select
     l.customer_340b_id                                                    as ce_340b_id,
     l.ship_to_name,
     l.ship_to_dea,
-    n.pharmacy_npi,
-    case when n.pharmacy_npi is not null then 'opais_contract_pharmacy_name' else 'unlinked' end
-                                                                          as pharmacy_link_method,
+    coalesce(dir.pharmacy_npi, n.pharmacy_npi)                            as pharmacy_npi,
+    case
+        when dir.pharmacy_npi is not null then 'dea_directory'
+        when n.pharmacy_npi is not null then 'opais_contract_pharmacy_name'
+        else 'unlinked'
+    end                                                                   as pharmacy_link_method,
     l.ndc11,
     l.invoice_number,
     l.invoice_date,
@@ -47,5 +61,7 @@ select
     l.chargeback_amount,
     l._source_file
 from lines l
+left join directory dir
+    on dir.dea_number = upper(l.ship_to_dea)
 left join pharmacy_names n
     on n.pharmacy_name = l.ship_to_name
