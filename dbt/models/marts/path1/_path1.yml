@@ -1,0 +1,129 @@
+# Path 1 mart. The first model with an enforced dbt contract: every column is declared here with its type, and the
+# build fails if the SQL returns a different set of columns or types. The marts are what audits, disputes and the
+# evaluation read, so their shape must not change by accident.
+# Severity rule of the project: errors only for keys, warnings for everything else.
+
+version: 2
+
+models:
+  - name: fct_path1_mfp_340b
+    description: >
+      Path 1, MFP and 340B duplicate discounts (Medicare Part D). One row per MTF claim not reversed, with the
+      manufacturer's refund decision, the 340B evidence for the fill and, where both concessions were given in full,
+      the duplicate amount: quantity x (WAC - the higher of MFP and ceiling price). Evidence for an MTF refund
+      adjustment or the Pilot's MFP nonduplication ground; the engine does not recommend an outcome. Synthetic data.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: mtf_icn
+        data_type: string
+        description: MTF internal control number of the claim. Primary key.
+        constraints:
+          - type: not_null
+        data_tests: [unique, not_null]
+      - name: manufacturer_code
+        data_type: string
+        description: Manufacturer of the drug.
+      - name: pharmacy_npi
+        data_type: string
+        description: NPI of the dispensing pharmacy.
+      - name: rx_number_normalized
+        data_type: string
+        description: Prescription number without leading zeros.
+      - name: fill_number
+        data_type: int
+        description: Fill number.
+      - name: ndc11
+        data_type: string
+        description: NDC, 11 digits.
+      - name: date_of_service
+        data_type: date
+        description: Date the prescription was filled.
+      - name: service_year
+        data_type: int
+        description: Year of the date of service (2026 chargeback regime, 2027 Pilot for 18 drugs).
+      - name: quantity
+        data_type: decimal(14,3)
+        description: Units dispensed.
+      - name: refund_method_code
+        data_type: string
+        description: MTF refund method code the manufacturer returned (1 SDRA, 4 no refund, 8 ceiling minus MFP).
+      - name: refund_amount
+        data_type: decimal(18,2)
+        description: Refund paid to the pharmacy.
+      - name: full_mfp_refund_paid
+        data_type: boolean
+        description: Code 1 with a positive refund, the full MFP refund (WAC - MFP) x quantity.
+      - name: wac_per_unit
+        data_type: decimal(18,6)
+        description: WAC per unit on the date of service (synthetic).
+      - name: mfp_per_unit
+        data_type: decimal(18,6)
+        description: Maximum Fair Price per unit.
+      - name: ceiling_per_unit
+        data_type: decimal(18,6)
+        description: 340B ceiling price per unit, from the source named in ceiling_source (synthetic).
+      - name: ceiling_source
+        data_type: string
+        description: >
+          pilot_rebate_unit_price (the unit 340B price of the paid Pilot rebate), pilot_ceiling_file_ratio or
+          chargeback_contract_price_ratio (ceiling-to-WAC ratio per package in that quarter, applied to the claim's
+          WAC per unit, because files price packages and claims count units).
+      - name: nonduplication_case
+        data_type: string
+        description: d1_ceiling_below_mfp (section 1193(d)(1)) or d2_mfp_below_ceiling (section 1193(d)(2)).
+      - name: evidence_level
+        data_type: string
+        description: Evidence level of the claim from int_claim_340b_evidence.
+      - name: evidence_basis
+        data_type: string
+        description: >
+          The evidence that the 340B price was given: pilot_rebate_paid, pharmacy_340b_flag,
+          registered_route_and_340b_purchase or observed_route_and_340b_purchase.
+      - name: pilot_paid_submissions
+        data_type: bigint
+        description: Pilot submissions matched to the fill whose rebate was paid.
+      - name: pilot_rebate_paid
+        data_type: decimal(18,2)
+        description: Total Pilot rebate paid on the fill.
+      - name: pilot_statuses
+        data_type: array<string>
+        description: Decisions on the Pilot submissions matched to the fill.
+      - name: pilot_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities that submitted the fill to the Pilot.
+      - name: purchase_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities whose 340B purchases back the fill.
+      - name: pathway_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities with a registered route through the pharmacy on the date.
+      - name: observed_route_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities with an observed route through the pharmacy on the date.
+      - name: finding_status
+        data_type: string
+        description: >
+          duplicate_evidenced, nonduplication_applied, no_refund_paid, pilot_rebate_not_paid,
+          evidence_insufficient or no_340b_evidence.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['duplicate_evidenced', 'nonduplication_applied', 'no_refund_paid', 'pilot_rebate_not_paid',
+                         'evidence_insufficient', 'no_340b_evidence']
+      - name: duplicate_amount
+        data_type: decimal(18,2)
+        description: Duplicate discount for duplicate_evidenced rows, quantity x (WAC - higher of MFP and ceiling).
+      - name: rules_channel
+        data_type: string
+        description: >
+          Channel the published rules provide for a duplicate_evidenced row: mtf_refund_adjustment, or
+          pilot_mfp_nonduplication_ground for a paid Pilot rebate where the MFP is the lower price.
+      - name: datasets_used
+        data_type: array<string>
+        description: Datasets the row rests on, as the Pilot Notice asks for its own data.
+      - name: _source_file
+        data_type: string
+        description: MTF file the claim came from.

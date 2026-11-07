@@ -72,6 +72,8 @@ data_tests:
       +store_failures: true
     intermediate:
       +store_failures: true
+    marts:
+      +store_failures: true
 
 # After every dbt run or build: append one row per test to data_quality.test_results (macros/log_test_results.sql),
 # a history of data quality across runs.
