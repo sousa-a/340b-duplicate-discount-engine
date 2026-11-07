@@ -6,8 +6,11 @@
 --                         (an arrangement cannot count while the entity is not participating)
 --   medicaid_ffs_carve_in a billing NPI the entity listed on the Medicaid Exclusion File for one state: the entity
 --                         bills that state's fee for service Medicaid with 340B drugs through this NPI
--- Entity-owned pharmacies that are not on the Medicaid Exclusion File have no public NPI link, so they have no
--- pathway here (see int_340b_purchases for how many 340B purchases this leaves unlinked).
+--   observed_340b_ship_to a pharmacy that received 340B shipments for the entity (844 chargeback lines linked to its
+--                         NPI). Not registered anywhere public: inferred from the manufacturer's own purchase records,
+--                         so it is labeled apart and never merged with the two registered routes. It mostly covers
+--                         entity-owned pharmacies, which OPAIS does not list. In force from var('purchase_window_days')
+--                         before the first shipment (a shipment replenishes fills dispensed before it) to the last one.
 -- This is condition C2 of Martin and Illich (2022), "filled at an entity-owned pharmacy or one of the entity's
 -- contract pharmacies", restricted to what public data shows. Condition C1 (prescription written at the entity)
 -- needs medical claims a manufacturer does not receive and is not attempted.
@@ -54,11 +57,31 @@ medicaid_carve_in as (
 
 ),
 
+observed_ship_to as (
+
+    select
+        pu.pharmacy_npi,
+        pu.ce_340b_id,
+        'observed_340b_ship_to'                                           as pathway_type,
+        cast(null as string)                                              as medicaid_state_code,
+        greatest(date_sub(min(pu.invoice_date), {{ var('purchase_window_days') }}), min(e.participation_start_date))
+                                                                          as valid_from,
+        least(max(pu.invoice_date), min(e.participation_end_date))        as valid_to
+    from {{ ref('int_340b_purchases') }} pu
+    join entities e
+        on e.ce_340b_id = pu.ce_340b_id
+    where pu.pharmacy_npi is not null
+    group by pu.pharmacy_npi, pu.ce_340b_id
+
+),
+
 all_pathways as (
 
     select * from contract_pharmacy
     union all
     select * from medicaid_carve_in
+    union all
+    select * from observed_ship_to
 
 )
 

@@ -8,20 +8,21 @@ version: 2
 models:
   - name: int_340b_pathways
     description: >
-      Registered routes by which a pharmacy could dispense 340B stock for a covered entity (OPAIS contract pharmacy,
-      Medicaid Exclusion File billing NPI), with the dates each was in force. Synthetic data.
+      Routes by which a pharmacy could dispense 340B stock for a covered entity, with the dates each was in force:
+      registered (OPAIS contract pharmacy, Medicaid Exclusion File billing NPI) or observed (the pharmacy received
+      340B shipments for the entity). Synthetic data.
     columns:
       - name: pharmacy_npi
         description: NPI of the pharmacy (contract pharmacy NPI, or billing NPI on the Medicaid Exclusion File).
       - name: ce_340b_id
         description: Covered entity the route belongs to.
       - name: pathway_type
-        description: contract_pharmacy or medicaid_ffs_carve_in.
+        description: contract_pharmacy, medicaid_ffs_carve_in (registered) or observed_340b_ship_to (inferred from shipments).
         data_tests:
           - accepted_values:
               config: {severity: warn}
               arguments:
-                values: ['contract_pharmacy', 'medicaid_ffs_carve_in']
+                values: ['contract_pharmacy', 'medicaid_ffs_carve_in', 'observed_340b_ship_to']
       - name: medicaid_state_code
         description: For medicaid_ffs_carve_in, the state whose fee for service Medicaid the route applies to.
       - name: valid_from
@@ -161,7 +162,8 @@ models:
   - name: int_claim_340b_evidence
     description: >
       For every MTF and Medicaid claim, the evidence of 340B status found in the manufacturer's data and the evidence
-      level it adds up to (claim_level, pathway_and_purchase, pathway_only, none). Synthetic data.
+      level it adds up to (claim_level, pathway_and_purchase, observed_route_and_purchase, pathway_only,
+      observed_route_only, none). Synthetic data.
     columns:
       - name: source
         description: mtf or medicaid_cld. Part of the key.
@@ -202,7 +204,11 @@ models:
       - name: medicaid_carve_in_entities
         description: Covered entities that listed this pharmacy NPI on the Medicaid Exclusion File, in force on the date.
       - name: pathway_ce_340b_ids
-        description: Covered entities with a route through this pharmacy on the date of service.
+        description: Covered entities with a registered route through this pharmacy on the date of service.
+      - name: observed_route_entities
+        description: Covered entities with an observed route (340B shipments) through this pharmacy on the date.
+      - name: observed_route_ce_340b_ids
+        description: Covered entities with an observed route through this pharmacy on the date of service.
       - name: purchase_lines
         description: 340B chargeback lines for this pharmacy and NDC within the purchase window after the date of service.
       - name: first_purchase_date
@@ -210,12 +216,15 @@ models:
       - name: purchase_ce_340b_ids
         description: Covered entities whose 340B accounts made those purchases.
       - name: evidence_level
-        description: claim_level, pathway_and_purchase, pathway_only or none.
+        description: >
+          claim_level, pathway_and_purchase, observed_route_and_purchase, pathway_only, observed_route_only or none,
+          strongest first.
         data_tests:
           - not_null
           - accepted_values:
               config: {severity: warn}
               arguments:
-                values: ['claim_level', 'pathway_and_purchase', 'pathway_only', 'none']
+                values: ['claim_level', 'pathway_and_purchase', 'observed_route_and_purchase', 'pathway_only',
+                         'observed_route_only', 'none']
       - name: _source_file
         description: Inbox file the claim came from.
