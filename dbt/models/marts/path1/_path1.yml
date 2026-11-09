@@ -1,7 +1,7 @@
 # Path 1 mart. The first model with an enforced dbt contract: every column is declared here with its type, and the
 # build fails if the SQL returns a different set of columns or types. The marts are what audits, disputes and the
 # evaluation read, so their shape must not change by accident.
-# Severity rule of the project - errors only for keys, warnings for everything else.
+# Severity rule of the project: errors only for keys, warnings for everything else.
 
 version: 2
 
@@ -9,9 +9,9 @@ models:
   - name: fct_path1_mfp_340b
     description: >
       Path 1, MFP and 340B duplicate discounts (Medicare Part D). One row per MTF claim not reversed, with the
-      manufacturer's refund decision, the 340B evidence for the fill and, where 340B evidence is found, the duplicate
-      amount: quantity x (WAC - the higher of MFP and ceiling price). Evidence for an MTF refund adjustment or the
-      Pilot's MFP nonduplication ground; the engine does not recommend an outcome. Synthetic data.
+      manufacturer's refund decision, the 340B evidence for the fill and, where both concessions were given in full,
+      the duplicate amount: quantity x (WAC - the higher of MFP and ceiling price). Evidence for an MTF refund
+      adjustment or the Pilot's MFP nonduplication ground; the engine does not recommend an outcome. Synthetic data.
     config:
       contract:
         enforced: true
