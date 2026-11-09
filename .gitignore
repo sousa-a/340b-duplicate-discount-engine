@@ -43,6 +43,9 @@ tests/test_truth.py
 # Private working docs
 private/
 
+# PSD
+psd/
+
 # Credentials
 .env
 *.pem

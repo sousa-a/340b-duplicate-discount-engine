@@ -46,6 +46,9 @@ models:
     marts:
       +schema: marts
       +materialized: table
+    evaluation:
+      +schema: evaluation
+      +materialized: table
     # Column descriptions from the .yml files are written to Unity Catalog as comments, so the data dictionary
     # shows up in Catalog Explorer next to the data.
     +persist_docs:

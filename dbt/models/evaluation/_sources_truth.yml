@@ -1,0 +1,42 @@
+# Truth schema sources.
+# Only evaluation models may reference these sources; tests/test_engine_isolation.py enforces that.
+# Every value in these tables is synthetic (SYNTHETIC_DATA_NOTICE.md).
+
+version: 2
+
+sources:
+  - name: truth
+    schema: truth
+    description: >
+      Ground truth written by the generator (src/generator/truth.py). One row per situation the engine must get
+      right: the path, the scenario code, the expected verdict, the duplicate amount and the inbox evidence keys.
+      Loaded by notebooks/parse_inbox.py alongside the inbox data; read only by the evaluation step.
+    tables:
+      - name: planted_findings
+        description: >
+          Answer key (truth/planted_findings.csv, D53). One row per situation: 14,661 rows at full scale,
+          1,118 FLAG (Path 1: 923, Path 2: 154, Path 3: 41). The expected_verdict is FLAG for POS_ scenario
+          codes, NO_FLAG for NEG_, EDGE_ and TRAP_ codes.
+        columns:
+          - name: path
+            description: Detection path (1, 2 or 3).
+          - name: scenario_code
+            description: The ground-truth scenario from the design document section 6.
+          - name: expected_verdict
+            description: FLAG when the engine should flag this situation, NO_FLAG otherwise.
+          - name: duplicate_amount
+            description: The true duplicate discount amount for FLAG rows.
+          - name: mtf_icn
+            description: MTF internal control number (Path 1 evidence key). Null for paths 2 and 3.
+          - name: pilot_submission_id
+            description: Pilot submission ID when the situation involves a Pilot claim.
+          - name: chargeback_line_key
+            description: Chargeback sale line key when the situation involves an 844 line.
+          - name: invoice_key
+            description: State invoice key (state|NDC|quarter|record_id) for Path 2.
+          - name: is_penny
+            description: "true when the 340B price is $0.01 (penny pricing edge case)."
+          - name: is_lis
+            description: "true when the claim is a Part D Low Income Subsidy claim (trap: not Medicaid)."
+          - name: is_noise
+            description: "true when a noise layer change affects this situation."
