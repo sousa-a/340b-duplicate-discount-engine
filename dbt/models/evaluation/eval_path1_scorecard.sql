@@ -34,9 +34,9 @@ engine_flags_no_ak as (
         e.ndc11
     from {{ ref('fct_path1_mfp_340b') }} e
     left join {{ source('truth', 'planted_findings') }} t
-        on cast(t.mtf_icn as string) = e.mtf_icn and cast(t.path as string) = '1'
+        on cast(t.evidence_mtf_icn as string) = e.mtf_icn and cast(t.path as string) = '1'
     where e.finding_status = 'duplicate_evidenced'
-      and t.mtf_icn is null
+      and t.evidence_mtf_icn is null
 
 ),
 

@@ -1,4 +1,4 @@
-# Truth schema sources.
+# Truth schema sources. The answer key lives here, sealed from the engine.
 # Only evaluation models may reference these sources; tests/test_engine_isolation.py enforces that.
 # Every value in these tables is synthetic (SYNTHETIC_DATA_NOTICE.md).
 
@@ -8,35 +8,50 @@ sources:
   - name: truth
     schema: truth
     description: >
-      Ground truth written by the generator (src/generator/truth.py). One row per situation the engine must get
-      right: the path, the scenario code, the expected verdict, the duplicate amount and the inbox evidence keys.
-      Loaded by notebooks/parse_inbox.py alongside the inbox data; read only by the evaluation step.
+      Ground truth written by the generator. One row per situation the engine must get right: the path, the
+      scenario code, the expected verdict, the duplicate amount and the inbox evidence keys. Read only by the
+      evaluation step.
     tables:
       - name: planted_findings
         description: >
-          Answer key (truth/planted_findings.csv, D53). One row per situation: 14,661 rows at full scale,
+          Answer key (truth/planted_findings.csv). One row per situation: 14,661 rows at full scale,
           1,118 FLAG (Path 1: 923, Path 2: 154, Path 3: 41). The expected_verdict is FLAG for POS_ scenario
           codes, NO_FLAG for NEG_, EDGE_ and TRAP_ codes.
         columns:
+          - name: finding_id
+            description: Unique identifier for the planted finding (SYN-TRU-nnnnnnn).
+            data_tests: [not_null, unique]
           - name: path
             description: Detection path (1, 2 or 3).
           - name: scenario_code
-            description: The ground-truth scenario from the design document section 6.
+            description: The ground-truth scenario (POS_MFP_2026_CHARGEBACK, EDGE_REVERSAL, etc.).
           - name: expected_verdict
             description: FLAG when the engine should flag this situation, NO_FLAG otherwise.
+          - name: claim_id
+            description: The synthetic claim that drives this situation (SYN-CLM-nnnnnnn).
+          - name: drug_key
+            description: Drug name key (e.g. JANUVIA, IMBRUVICA).
+          - name: ndc11
+            description: NDC-11 of the drug.
+          - name: date_of_service
+            description: Date the prescription was filled.
+          - name: line_of_business
+            description: Payer line of business (PART_D, MEDICAID_FFS, MEDICAID_MCO).
+          - name: ce_340b_id
+            description: Covered entity 340B ID when the claim was converted.
+          - name: pharmacy_id
+            description: Synthetic pharmacy identifier (SYN-RX-ST0000).
           - name: duplicate_amount
-            description: The true duplicate discount amount for FLAG rows.
-          - name: mtf_icn
-            description: MTF internal control number (Path 1 evidence key). Null for paths 2 and 3.
-          - name: pilot_submission_id
+            description: The true duplicate discount amount for FLAG rows; 0 for NO_FLAG.
+          - name: evidence_mtf_icn
+            description: MTF internal control number (Path 1 evidence key). Empty for paths 2 and 3.
+          - name: evidence_pilot_submission_id
             description: Pilot submission ID when the situation involves a Pilot claim.
-          - name: chargeback_line_key
-            description: Chargeback sale line key when the situation involves an 844 line.
-          - name: invoice_key
-            description: State invoice key (state|NDC|quarter|record_id) for Path 2.
-          - name: is_penny
-            description: "true when the 340B price is $0.01 (penny pricing edge case)."
-          - name: is_lis
-            description: "true when the claim is a Part D Low Income Subsidy claim (trap: not Medicaid)."
-          - name: is_noise
-            description: "true when a noise layer change affects this situation."
+          - name: evidence_chargeback_sale_line_id
+            description: Chargeback sale line ID when the situation involves an 844 line.
+          - name: evidence_invoice_key
+            description: State invoice key for Path 2.
+          - name: tags
+            description: >
+              Comma-separated tags for edge cases and noise: PENNY (340B price $0.01),
+              LIS (Part D Low Income Subsidy, trap for Path 2), NOISE (noise layer affects this row).

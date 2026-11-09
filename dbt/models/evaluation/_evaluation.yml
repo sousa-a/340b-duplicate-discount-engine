@@ -1,4 +1,5 @@
-# Evaluation models
+# Evaluation models. These are the only models that may read from the truth schema.
+# Schema: evaluation (via generate_schema_name override).
 
 version: 2
 
@@ -6,11 +7,13 @@ models:
   - name: eval_path1_detail
     description: >
       Per-row comparison of the Path 1 answer key against fct_path1_mfp_340b. Every planted_findings row with
-      path = 1 is left-joined to the mart on mtf_icn, producing a classification: true_positive, false_negative,
-      false_positive_ak, true_negative, or no_engine_row. Synthetic data.
+      path = 1 is left-joined to the mart on evidence_mtf_icn, producing a classification: true_positive,
+      false_negative, false_positive_ak, true_negative, or no_engine_row. Synthetic data.
     columns:
-      - name: mtf_icn
+      - name: finding_id
         data_tests: [not_null, unique]
+      - name: evidence_mtf_icn
+        data_tests: [not_null]
       - name: classification
         data_tests:
           - accepted_values:
@@ -22,3 +25,6 @@ models:
       Aggregate evaluation metrics for Path 1, one row per scenario code plus a NO_AK_FLAG row for engine flags
       that have no answer-key entry. Reports precision, recall, F1 and the share of true duplicate dollars captured.
       Synthetic data.
+    columns:
+      - name: scenario_code
+        data_tests: [not_null, unique]
