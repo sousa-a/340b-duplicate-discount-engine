@@ -49,3 +49,7 @@ psd/
 # Credentials
 .env
 *.pem
+
+# Exception: truth answer key (all synthetic, required by evaluation)
+!data/truth/
+!data/truth/**
