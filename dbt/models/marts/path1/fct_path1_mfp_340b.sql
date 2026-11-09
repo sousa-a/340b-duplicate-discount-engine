@@ -11,10 +11,11 @@
 -- which is the full 340B discount when the MFP is lower and the full MFP refund when the ceiling is lower. IQVIA's
 -- 2026 study counts duplicates the same way (Sun et al. 2026).
 --
--- finding_status: 
---   duplicate_evidenced        evidence the fill got the 340B price and an MFP concession was given (including
---                              claims where the manufacturer already applied nonduplication, code 4 or 8)
---   nonduplication_applied     the manufacturer paid code 4 or 8 and no 340B evidence confirms the duplicate
+-- finding_status:
+--   duplicate_evidenced        an MFP concession was given (full refund code 1 or partial code 8) and evidence the
+--                              fill also got the 340B price; code 8 means the manufacturer already applied
+--                              nonduplication for section 1193(d)(2) but the duplicate situation is confirmed
+--   nonduplication_applied     the manufacturer paid code 4 (no refund) or code 8 without 340B evidence
 --   pilot_rebate_not_paid      the fill went to the Pilot, but no rebate was paid (denied or rejected), so the 340B
 --                              price was not given and the MFP refund stands
 --   evidence_insufficient      refund paid, the pharmacy is a 340B route, but nothing ties this fill to 340B stock
@@ -195,7 +196,8 @@ select
 
     -- the finding
     cast(case
-        when has_340b_given_evidence then 'duplicate_evidenced'
+        when has_340b_given_evidence and (full_mfp_refund_paid or refund_method_code = '8')
+            then 'duplicate_evidenced'
         when refund_method_code in ('4', '8') then 'nonduplication_applied'
         when not full_mfp_refund_paid then 'no_refund_paid'
         when coalesce(pilot_submissions, 0) > 0 then 'pilot_rebate_not_paid'
@@ -203,11 +205,13 @@ select
         else 'no_340b_evidence'
     end as string)                                                        as finding_status,
     cast(case
-        when has_340b_given_evidence and ceiling_per_unit is not null
+        when has_340b_given_evidence and (full_mfp_refund_paid or refund_method_code = '8')
+            and ceiling_per_unit is not null
             then round(quantity * (wac_per_unit - greatest(mfp_per_unit, ceiling_per_unit)), 2)
     end as decimal(18, 2))                                                as duplicate_amount,
     cast(case
-        when not has_340b_given_evidence then null
+        when not (has_340b_given_evidence and (full_mfp_refund_paid or refund_method_code = '8'))
+            then null
         when coalesce(paid_submissions, 0) > 0 and ceiling_per_unit >= mfp_per_unit
             then 'pilot_mfp_nonduplication_ground'
         else 'mtf_refund_adjustment'
