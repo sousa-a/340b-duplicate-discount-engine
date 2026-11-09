@@ -1,0 +1,132 @@
+# Path 2 mart. Enforced dbt contract: every column is declared here with its type, and the build fails if the SQL
+# returns a different set of columns or types. Severity rule of the project: errors only for keys, warnings for
+# everything else.
+
+version: 2
+
+models:
+  - name: fct_path2_medicaid_340b
+    description: >
+      Path 2, Medicaid and 340B duplicate discounts. One row per claim on a disputed CMS-R-144 invoice line where the
+      manufacturer has evidence. Stage 1 aggregates 340B submissions with a Medicaid BIN/PCN to state x NDC x quarter
+      and compares with invoice lines; stage 2 joins claim-level detail with the shared 340B evidence layer.
+      Duplicate = URA x claim units. Synthetic data.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: invoice_file
+        data_type: string
+        description: CMS-R-144 invoice file the line came from.
+      - name: line_number
+        data_type: int
+        description: Line number within the invoice file.
+      - name: manufacturer_code
+        data_type: string
+        description: Manufacturer invoiced.
+      - name: state_code
+        data_type: string
+        description: State Medicaid program.
+      - name: ndc11
+        data_type: string
+        description: NDC, 11 digits.
+      - name: utilization_type_code
+        data_type: string
+        description: FFSU or MCOU.
+      - name: utilization_type
+        data_type: string
+        description: Fee for service or managed care.
+      - name: period_covered
+        data_type: string
+        description: Quarter invoiced (QYYYY).
+      - name: quarter_start_date
+        data_type: date
+        description: First day of the quarter.
+      - name: quarter_end_date
+        data_type: date
+        description: Last day of the quarter.
+      - name: ura
+        data_type: decimal(15,6)
+        description: Unit Rebate Amount on the invoice line (synthetic).
+      - name: units_reimbursed
+        data_type: decimal(16,3)
+        description: Units the state invoiced for the line.
+      - name: rebate_amount_claimed
+        data_type: decimal(16,2)
+        description: Rebate the state claims on the line (URA x units).
+      - name: signal_submissions
+        data_type: bigint
+        description: Pilot submissions with a Medicaid BIN/PCN for this state, NDC and quarter.
+      - name: signal_units
+        data_type: decimal(16,3)
+        description: Units on those signal submissions.
+      - name: dispensing_claim_id
+        data_type: string
+        description: >
+          Hash identifier of the claim in int_dispensing_claims (source = medicaid_cld). Part of the key with
+          invoice_file and line_number.
+        constraints:
+          - type: not_null
+        data_tests: [not_null]
+      - name: pharmacy_npi
+        data_type: string
+        description: NPI of the dispensing pharmacy.
+      - name: rx_number_normalized
+        data_type: string
+        description: Prescription number without leading zeros.
+      - name: fill_number
+        data_type: int
+        description: Fill number.
+      - name: date_of_service
+        data_type: date
+        description: Date of service from the state's claim-level detail.
+      - name: claim_units
+        data_type: decimal(14,3)
+        description: Units on the claim.
+      - name: claim_medicaid_amount
+        data_type: decimal(16,2)
+        description: Amount Medicaid paid for the claim.
+      - name: evidence_level
+        data_type: string
+        description: Evidence level from int_claim_340b_evidence.
+      - name: evidence_basis
+        data_type: string
+        description: >
+          The evidence that the 340B price was given: pilot_submission_matched, pharmacy_340b_flag,
+          registered_route_and_340b_purchase or observed_route_and_340b_purchase.
+      - name: pilot_submissions
+        data_type: bigint
+        description: Pilot submissions matched to the claim.
+      - name: pilot_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities that submitted the fill to the Pilot.
+      - name: pilot_statuses
+        data_type: array<string>
+        description: Decisions on the Pilot submissions matched to the fill.
+      - name: purchase_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities whose 340B purchases back the fill.
+      - name: pathway_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities with a registered route through the pharmacy on the date.
+      - name: observed_route_ce_340b_ids
+        data_type: array<string>
+        description: Covered entities with an observed route through the pharmacy on the date.
+      - name: finding_status
+        data_type: string
+        description: >
+          duplicate_evidenced, evidence_insufficient or no_340b_evidence.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['duplicate_evidenced', 'evidence_insufficient', 'no_340b_evidence']
+      - name: duplicate_amount
+        data_type: decimal(18,2)
+        description: Duplicate discount for duplicate_evidenced rows, URA x claim units.
+      - name: datasets_used
+        data_type: array<string>
+        description: Datasets the row rests on.
+      - name: _source_file
+        data_type: string
+        description: Claim-level detail file the claim came from.

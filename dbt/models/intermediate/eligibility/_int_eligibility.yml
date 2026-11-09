@@ -159,6 +159,71 @@ models:
       - name: matches_with_quantity_difference
         description: Of those, pairs whose quantities differ.
 
+  - name: int_medicaid_340b_signal
+    description: >
+      Stage 1 of Medicaid/340B detection: every CMS-R-144 invoice line with the 340B signal from Pilot submissions
+      carrying a Medicaid BIN/PCN, aggregated to state x NDC x quarter. Lines with a signal are candidates for dispute.
+      Synthetic data.
+    columns:
+      - name: invoice_file
+        description: Invoice file the line came from.
+      - name: line_number
+        description: Line number within the file.
+      - name: manufacturer_code
+        description: Manufacturer invoiced.
+      - name: state_code
+        description: State Medicaid program.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: record_id
+        description: FFSU or MCOU.
+      - name: utilization_type
+        description: Fee for service or managed care.
+      - name: period_covered
+        description: Quarter invoiced (QYYYY).
+      - name: quarter_start_date
+        description: First day of the quarter.
+      - name: quarter_end_date
+        description: Last day of the quarter.
+      - name: ura
+        description: Unit Rebate Amount on the invoice line (synthetic).
+      - name: units_reimbursed
+        description: Units the state invoiced.
+      - name: rebate_amount_claimed
+        description: Rebate the state claims on the line.
+      - name: number_of_prescriptions
+        description: Prescriptions behind the line.
+      - name: signal_submissions
+        description: Pilot submissions with a Medicaid BIN/PCN for this state, NDC and quarter.
+      - name: signal_units
+        description: Units on those signal submissions.
+      - name: has_340b_signal
+        description: True when signal_submissions > 0.
+
+  - name: int_medicaid_invoice_disputes
+    description: >
+      Disputed CMS-R-144 invoice lines joined with claim-level detail and the shared 340B evidence layer. One row per
+      claim on a disputed line. Synthetic data.
+    columns:
+      - name: invoice_file
+        description: Invoice file the line came from.
+      - name: line_number
+        description: Line number within the file.
+      - name: manufacturer_code
+        description: Manufacturer invoiced.
+      - name: state_code
+        description: State Medicaid program.
+      - name: ndc11
+        description: NDC, 11 digits.
+      - name: utilization_type_code
+        description: FFSU or MCOU.
+      - name: utilization_type
+        description: Fee for service or managed care.
+      - name: evidence_level
+        description: Evidence level from int_claim_340b_evidence for this claim.
+      - name: dispensing_claim_id
+        description: Hash identifier of the claim in int_dispensing_claims.
+
   - name: int_claim_340b_evidence
     description: >
       For every MTF and Medicaid claim, the evidence of 340B status found in the manufacturer's data and the evidence
