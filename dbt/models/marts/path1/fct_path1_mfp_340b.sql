@@ -11,7 +11,7 @@
 -- which is the full 340B discount when the MFP is lower and the full MFP refund when the ceiling is lower. IQVIA's
 -- 2026 study counts duplicates the same way (Sun et al. 2026).
 --
--- finding_status:
+-- finding_status: 
 --   duplicate_evidenced        evidence the fill got the 340B price and an MFP concession was given (including
 --                              claims where the manufacturer already applied nonduplication, code 4 or 8)
 --   nonduplication_applied     the manufacturer paid code 4 or 8 and no 340B evidence confirms the duplicate
