@@ -9,9 +9,9 @@ models:
   - name: fct_path1_mfp_340b
     description: >
       Path 1, MFP and 340B duplicate discounts (Medicare Part D). One row per MTF claim not reversed, with the
-      manufacturer's refund decision, the 340B evidence for the fill and, where both concessions were given in full,
-      the duplicate amount: quantity x (WAC - the higher of MFP and ceiling price). Evidence for an MTF refund
-      adjustment or the Pilot's MFP nonduplication ground; the engine does not recommend an outcome. Synthetic data.
+      manufacturer's refund decision, the 340B evidence for the fill and, where 340B evidence is found, the duplicate
+      amount: quantity x (WAC - the higher of MFP and ceiling price). Evidence for an MTF refund adjustment or the
+      Pilot's MFP nonduplication ground; the engine does not recommend an outcome. Synthetic data.
     config:
       contract:
         enforced: true
