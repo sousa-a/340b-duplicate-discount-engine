@@ -14,7 +14,7 @@ dbt/profiles.yml
 .databricks/
 
 # Generated data and downloaded reference files
-data/
+data/**
 reference_data/
 bundle/
 
@@ -51,5 +51,6 @@ psd/
 *.pem
 
 # Exception: truth answer key (all synthetic, required by evaluation)
+data/**
 !data/truth/
 !data/truth/**
