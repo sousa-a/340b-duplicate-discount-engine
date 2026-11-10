@@ -19,15 +19,14 @@
 with truth_path3 as (
 
     select
-        cast(finding_id as string)                    as finding_id,
-        cast(evidence_pilot_submission_id as string)  as pilot_submission_id,
-        cast(chargeback_line_key as string)           as chargeback_line_key,
-        cast(path as string)                          as path,
-        cast(scenario_code as string)                 as scenario_code,
-        cast(expected_verdict as string)              as expected_verdict,
-        cast(duplicate_amount as decimal(18, 2))      as truth_duplicate_amount,
-        cast(is_penny as string)                      as is_penny,
-        cast(is_noise as string)                      as is_noise
+        cast(finding_id as string)                          as finding_id,
+        cast(evidence_pilot_submission_id as string)        as pilot_submission_id,
+        cast(evidence_chargeback_sale_line_id as string)    as chargeback_line_key,
+        cast(path as string)                                as path,
+        cast(scenario_code as string)                       as scenario_code,
+        cast(expected_verdict as string)                    as expected_verdict,
+        cast(duplicate_amount as decimal(18, 2))            as truth_duplicate_amount,
+        cast(tags as string)                                as tags
     from {{ source('truth', 'planted_findings') }}
     where cast(path as string) = '3'
 
@@ -57,12 +56,11 @@ engine as (
 select
     t.finding_id,
     t.pilot_submission_id,
-    t.chargeback_line_key,
+    t.chargeback_sale_line_id,
     t.scenario_code,
     t.expected_verdict,
     t.truth_duplicate_amount,
-    t.is_penny,
-    t.is_noise,
+    t.tags,
 
     e.ce_340b_id,
     e.paired_ce_340b_id,
