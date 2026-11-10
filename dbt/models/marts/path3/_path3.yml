@@ -1,0 +1,95 @@
+# Path 3 mart. Enforced dbt contract: every column is declared here with its type, and the build fails if the SQL
+# returns a different set of columns or types. Severity rule of the project: errors only for keys, warnings for
+# everything else.
+
+version: 2
+
+models:
+  - name: fct_path3_same_fill_diversion
+    description: >
+      Path 3, same-fill diversion. One row per Pilot submission that is part of a same-fill pair where two different
+      covered entities submitted the same dispensed fill. Detection relies on int_claim_matches (Pilot-to-Pilot pairs
+      with different ce_340b_id). Unpivoted so the grain is one submission per row, with the paired entity and
+      submission for audit reference. Duplicate = rebate paid on the submission (Nikpay et al. 2024). Synthetic data.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: pilot_submission_id
+        data_type: string
+        description: Pilot submission ID. Primary key.
+        constraints:
+          - type: not_null
+        data_tests: [not_null, unique]
+      - name: ce_340b_id
+        data_type: string
+        description: Covered entity that submitted this claim.
+        constraints:
+          - type: not_null
+      - name: paired_ce_340b_id
+        data_type: string
+        description: The other covered entity in the same-fill pair.
+        constraints:
+          - type: not_null
+      - name: paired_pilot_submission_id
+        data_type: string
+        description: Pilot submission ID of the paired entity's claim.
+      - name: pharmacy_npi
+        data_type: string
+        description: NPI of the dispensing pharmacy.
+      - name: rx_number_normalized
+        data_type: string
+        description: Prescription number without leading zeros.
+      - name: fill_number
+        data_type: int
+        description: Fill number.
+      - name: ndc11
+        data_type: string
+        description: NDC, 11 digits.
+      - name: date_of_service
+        data_type: date
+        description: Date of service on this submission.
+      - name: quantity
+        data_type: decimal(14,3)
+        description: Quantity on this submission.
+      - name: manufacturer_code
+        data_type: string
+        description: Manufacturer of the drug.
+      - name: match_type
+        data_type: string
+        description: >
+          How well the pair matched: exact, date_shifted, quantity_differs or date_shifted_quantity_differs.
+      - name: date_difference_days
+        data_type: int
+        description: Days between the two submissions' dates of service.
+      - name: rebate_status
+        data_type: string
+        description: Pilot rebate status on this submission (PAID, DENIED, REJECTED).
+      - name: rebate_amount
+        data_type: decimal(18,2)
+        description: Rebate amount on this submission.
+      - name: paired_rebate_status
+        data_type: string
+        description: Pilot rebate status on the paired submission.
+      - name: paired_rebate_amount
+        data_type: decimal(18,2)
+        description: Rebate amount on the paired submission.
+      - name: finding_status
+        data_type: string
+        description: >
+          duplicate_evidenced when the rebate was paid, no_rebate_paid otherwise.
+        data_tests:
+          - accepted_values:
+              config: {severity: warn}
+              arguments:
+                values: ['duplicate_evidenced', 'no_rebate_paid']
+      - name: duplicate_amount
+        data_type: decimal(18,2)
+        description: Duplicate discount for duplicate_evidenced rows, the rebate paid on this submission.
+      - name: rules_channel
+        data_type: string
+        description: >
+          pilot_same_fill_ground (the Pilot "rebate already provided" denial ground) or hrsa_audit.
+      - name: datasets_used
+        data_type: array<string>
+        description: Datasets the row rests on.
