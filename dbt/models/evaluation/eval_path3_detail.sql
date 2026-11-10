@@ -95,4 +95,8 @@ select
 
 from truth_path3 t
 left join engine e
-    on e.pilot_submission_id = t.pilot_submission_id
+    on array_contains(split(t.pilot_submission_id, ';'), e.pilot_submission_id)
+qualify row_number() over (
+    partition by t.finding_id
+    order by case when e.finding_status = 'duplicate_evidenced' then 0 else 1 end
+) = 1
