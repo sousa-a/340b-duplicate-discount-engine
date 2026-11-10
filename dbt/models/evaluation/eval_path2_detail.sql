@@ -84,12 +84,13 @@ select
     e.invoice_file,
 
     case
+        when e.engine_invoice_key is null and t.expected_verdict = 'FLAG' then 'false_negative'
         when e.engine_invoice_key is null then 'no_engine_row'
         when t.expected_verdict = 'FLAG' and e.flagged_claims > 0 then 'true_positive'
         when t.expected_verdict = 'FLAG' and e.flagged_claims = 0 then 'false_negative'
         when t.expected_verdict != 'FLAG' and e.flagged_claims > 0 then 'false_positive_ak'
         else 'true_negative'
-    end                                                                       as classification,
+    end                                                                      as classification,
 
     case
         when e.engine_invoice_key is not null and t.truth_duplicate_amount is not null
