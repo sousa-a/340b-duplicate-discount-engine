@@ -39,9 +39,9 @@ engine_flags_no_ak as (
         ef.duplicate_amount
     from engine_flagged ef
     left join {{ source('truth', 'planted_findings') }} t
-        on cast(t.pilot_submission_id as string) = ef.pilot_submission_id
+        on cast(t.evidence_pilot_submission_id as string) = ef.pilot_submission_id
        and cast(t.path as string) = '3'
-    where t.pilot_submission_id is null
+    where t.evidence_pilot_submission_id is null
 
 ),
 

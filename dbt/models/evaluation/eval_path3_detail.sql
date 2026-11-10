@@ -20,7 +20,7 @@ with truth_path3 as (
 
     select
         cast(finding_id as string)                    as finding_id,
-        cast(pilot_submission_id as string)           as pilot_submission_id,
+        cast(evidence_pilot_submission_id as string)  as pilot_submission_id,
         cast(chargeback_line_key as string)           as chargeback_line_key,
         cast(path as string)                          as path,
         cast(scenario_code as string)                 as scenario_code,
