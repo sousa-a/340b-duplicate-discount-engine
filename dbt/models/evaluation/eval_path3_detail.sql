@@ -56,7 +56,7 @@ engine as (
 select
     t.finding_id,
     t.pilot_submission_id,
-    t.chargeback_sale_line_id,
+    t.chargeback_line_key,
     t.scenario_code,
     t.expected_verdict,
     t.truth_duplicate_amount,
