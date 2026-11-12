@@ -38,7 +38,7 @@ def _engine_files():
     for base, pattern in ENGINE_PATHS:
         if base.exists():
             for path in sorted(base.rglob(pattern)):
-                if path in ALLOWED_FILES or "target" in path.parts or "dbt_packages" in path.parts or "seeds" in path.parts:
+                if path in ALLOWED_FILES or "target" in path.parts or "dbt_packages" in path.parts or "seeds" in path.parts or "evaluation" in path.parts:
                     continue
                 yield path
 
