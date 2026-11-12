@@ -1,0 +1,59 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "340B Duplicate Discount Detection Engine"
+abstract: >-
+  Claim-level detection of 340B duplicate discounts (MFP/340B,
+  Medicaid/340B, same-fill diversion) reconciled against EDI
+  844/849/867 purchase data, on Databricks with PySpark and dbt.
+  Uses de-identified synthetic data with planted ground truth.
+authors:
+  - family-names: "Oliveira de Sousa"
+    given-names: "Alessandro"
+    orcid: ""
+    lattes: "http://lattes.cnpq.br/4073631211789299"
+    wos: "https://www.webofscience.com/wos/author/record/F-2983-2012"
+url: "https://github.com/sousa-a/340b-duplicate-discount-engine"
+repository-code: "https://github.com/sousa-a/340b-duplicate-discount-engine"
+license: Apache-2.0
+date-released: "2026-11-12"
+keywords:
+  - 340B
+  - duplicate-discount
+  - Maximum Fair Price
+  - MFP
+  - Medicaid
+  - drug pricing
+  - fraud waste and abuse
+  - dbt
+  - Databricks
+  - PySpark
+  - EDI X12
+  - healthcare analytics
+references:
+  - type: article
+    title: "How Large Are 340B/MFP Duplicate Discounts?"
+    authors:
+      - family-names: "Sun"
+        given-names: "Chuan"
+      - family-names: "Sarraille"
+        given-names: "William A."
+      - family-names: "Gambino"
+        given-names: "Sam"
+      - family-names: "Martin"
+        given-names: "Rory"
+    year: 2026
+    institution:
+      name: "IQVIA"
+    url: "https://www.iqvia.com/locations/united-states/blogs/2026/10/how-large-are-340BMFP-duplicate-discounts-study-intent"
+  - type: report
+    title: "Are Discounts in the 340B Drug Discount Program Being Shared with Patients at Contract Pharmacies?"
+    authors:
+      - family-names: "Martin"
+        given-names: "Rory"
+      - family-names: "Illich"
+        given-names: "Kristopher"
+    year: 2022
+    institution:
+      name: "IQVIA"
+    url: "https://www.iqvia.com/-/media/iqvia/pdfs/us/white-paper/are-discounts-in-the-340b-drug-discount-program-being-shared-with-patients-at-contract-pharmacies.pdf"
