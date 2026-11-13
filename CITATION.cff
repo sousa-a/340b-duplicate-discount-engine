@@ -10,7 +10,7 @@ abstract: >-
 authors:
   - family-names: "Oliveira de Sousa"
     given-names: "Alessandro"
-    orcid: ""
+    google_scholar: "https://scholar.google.com/citations?user=N3s_o4QAAAAJ&hl=en"
     lattes: "http://lattes.cnpq.br/4073631211789299"
     wos: "https://www.webofscience.com/wos/author/record/F-2983-2012"
 url: "https://github.com/sousa-a/340b-duplicate-discount-engine"
@@ -23,8 +23,8 @@ keywords:
   - Maximum Fair Price
   - MFP
   - Medicaid
+  - payment integrity
   - drug pricing
-  - fraud waste and abuse
   - dbt
   - Databricks
   - PySpark
