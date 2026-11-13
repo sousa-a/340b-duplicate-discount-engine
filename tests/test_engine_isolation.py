@@ -1,7 +1,7 @@
 # test_engine_isolation.py
 #
 # Enforces the "two worlds" rule:
-# the detection engine must never read ground truth or generator-only data.
+# the detection engine must NEVER read ground truth or generator-only data.
 #
 # Checked locations: every SQL and YAML file under dbt/, every Python file under src/ingestion/ and the Databricks
 # notebooks under notebooks/ (the raw parser is engine code too).
