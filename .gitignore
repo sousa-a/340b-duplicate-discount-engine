@@ -18,7 +18,7 @@ data/**
 reference_data/
 bundle/
 
-# Synthetic data generator, its parameters and the seeds with their builders: kept private
+# Synthetic data generator, its parameters and the seeds with their builders --> kept private
 config/
 src/common/
 src/generator/
@@ -49,6 +49,8 @@ psd/
 # Credentials
 .env
 *.pem
+
+/images/two_worlds.psd
 
 # Exception: truth answer key (all synthetic, required by evaluation)
 data/**
