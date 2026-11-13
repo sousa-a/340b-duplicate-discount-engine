@@ -1,8 +1,10 @@
-# 340B Duplicate Discount Engine
+# 340B Duplicate Discount Detection Engine
 
-This is a claim-level detection of Maximum Fair Price (MFP)/340B and Medicaid/340B duplicate discounts and same-fill diversion, reconciled against electronic data interchange (EDI) purchase data project. It employs Databricks, PySpark and dbt (data build tool), on synthetic data. 340B is the drug discount program created by section 340B of the Public Health Service Act.
+When a drug qualifies for both a federal discount and a state or program rebate, the same unit can carry two price reductions that were never meant to overlap. Federal law prohibits these duplicate discounts, but finding them requires matching claims, purchase records and rebate invoices across systems that were not built to talk to each other.
 
-> **All data in this project is completely synthetic.** No record describes a real covered entity, pharmacy, prescriber, patient or wholesaler. Real public facts (MFP drugs, National Drug Codes (NDCs), published prices, state policies, Pilot rules) enter only as sourced parameters and seeds. See [SYNTHETIC_DATA_NOTICE.md](SYNTHETIC_DATA_NOTICE.md).
+This project does that matching. It takes the data a drug manufacturer actually receives - pharmacy claims, wholesaler chargeback files, rebate invoices, purchase reports - and walks each transaction through three detection paths, one for each type of overlap. Every finding is scored against planted ground truth so the detection can be measured.
+
+> **All data in this project is completely synthetic.** No file describes a real organization, provider, patient or transaction. Real public data (drug names, published prices, state policies) is used only for sourced parameters and seeds. See [SYNTHETIC_DATA_NOTICE.md](SYNTHETIC_DATA_NOTICE.md).
 
 ## Why this project exists
 
@@ -27,6 +29,29 @@ The `src/generator/` simulates the whole market and knows everything, including 
 | `samples/` | small extracts to inspect without running anything |
 | `visuals/` | figures, Tableau workbook, interactive charts |
 | `docs/` | design, references, data sources |
+
+
+## Detection results
+
+The engine's output is measured against 14,661 planted ground-truth situations (1,118 flagged as duplicates) across the three detection paths. The evaluation models read the truth schema; the detection engine never does.
+
+### Path 1: MFP and 340B (Medicare Part D)
+
+Detects units that received both an MFP refund through the Medicare Transaction Facilitator and a 340B discount (chargeback or Pilot rebate). The nonduplication rule under SSA 1193(d) requires a refund adjustment.
+
+| Metric | Value |
+|---|---|
+| Precision | 0.8733 |
+| Recall | 0.9707 |
+| F1 | 0.9194 |
+
+Path 1 has the strongest signal because both the MFP refund and the 340B purchase leave explicit records in the manufacturer's data.
+
+### Paths 2 and 3
+
+Path 2 (Medicaid and 340B) and Path 3 (same-fill diversion between entities) are implemented and evaluated but produce lower scores on synthetic data. Path 2 depends on state Medicaid invoice data (CMS-R-144) where the synthetic invoices do not replicate the full complexity of real state reporting. Path 3 detects the same prescription filled under two different entities' 340B accounts, a pattern that appears rarely and is hard to evidence without the Pilot platform's own matching.
+
+These paths demonstrate the detection logic and the evidence the engine assembles for each finding. The scores reflect synthetic data limitations, not a ceiling on the method.
 
 ## Documentation
 
