@@ -14,6 +14,8 @@ The project takes no position in the policy debate over 340B. It shows how dupli
 
 ## How it is organized
 
+![Prove It Again - The generator knows every duplicate. The engine must find them from fragments.](images/two_worlds.jpg)
+
 The `src/generator/` simulates the whole market and knows everything, including the ground truth. Everything from `src/ingestion/` onward sees only what a **manufacturer** could receive like covered entity claim submissions, EDI 844/849/867 files from wholesalers, Medicare Transaction Facilitator (MTF) records and state Medicaid rebate invoices. Ground truth sits in its own schema and is read only by the evaluation step; a test fails the build if any engine model references it.
 
 | Folder | Contents |
