@@ -1,5 +1,7 @@
 # 340B Duplicate Discount Detection Engine
 
+![duplicate](images/duplicate.jpg)
+
 When a drug qualifies for both a federal discount and a state or program rebate, the same unit can carry two price reductions that were never meant to overlap. Federal law prohibits these duplicate discounts, but finding them requires matching claims, purchase records and rebate invoices across systems that were not built to talk to each other.
 
 This project does that matching. It takes the data a drug manufacturer actually receives - pharmacy claims, wholesaler chargeback files, rebate invoices, purchase reports - and walks each transaction through three detection paths, one for each type of overlap. Every finding is scored against planted ground truth so the detection can be measured.

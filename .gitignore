@@ -49,6 +49,7 @@ psd/
 # Credentials
 .env
 *.pem
+*.psd
 
 /images/two_worlds.psd
 
